@@ -103,7 +103,7 @@ implementation(project(":contract:usercenter"))
 ```
 ```java
 Bridge.init(this);                       // Application.onCreate
-Bridge.register(UsercenterSchema.MODULE);
+Bridge.register(UserCenterSchema.MODULE);
 ```
 
 **已有 service 的 App（lite·挂载）：** 见 [设计文档 §10.2](docs/20-design/ARCH-Bridge-SDK-去中心化消息总线设计.md)，在宿主 `Service.onBind` 按 action 返回 `Bridge.attachHost(this).getBinder()`。

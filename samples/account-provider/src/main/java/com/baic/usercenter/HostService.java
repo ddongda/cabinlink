@@ -14,7 +14,7 @@ public class HostService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         if (intent != null && BRIDGE_ACTION.equals(intent.getAction())) {
-            return UsercenterApp.host().getBinder();   // Bridge 通道
+            return UserCenterApp.host().getBinder();   // Bridge 通道
         }
         return null;   // 宿主原有业务通道（示例从略）
     }

@@ -22,17 +22,17 @@ public class MainActivity extends Activity {
 
         Button login = new Button(this);
         login.setText("登录 user_8888 / 小北");
-        login.setOnClickListener(v -> UsercenterApp.updateAccount(1, "user_8888", "小北"));
+        login.setOnClickListener(v -> UserCenterApp.updateAccount(1, "user_8888", "小北"));
         root.addView(login);
 
         Button switchAcc = new Button(this);
         switchAcc.setText("切换账号 user_6666 / 老司机");
-        switchAcc.setOnClickListener(v -> UsercenterApp.updateAccount(1, "user_6666", "老司机"));
+        switchAcc.setOnClickListener(v -> UserCenterApp.updateAccount(1, "user_6666", "老司机"));
         root.addView(switchAcc);
 
         Button logout = new Button(this);
         logout.setText("登出");
-        logout.setOnClickListener(v -> UsercenterApp.updateAccount(0, null, null));
+        logout.setOnClickListener(v -> UserCenterApp.updateAccount(0, null, null));
         root.addView(logout);
 
         setContentView(root);

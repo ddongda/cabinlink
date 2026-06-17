@@ -296,7 +296,7 @@ bridge.subscribe("usercenter.account.state", payload -> refreshAccount(payload))
 
 ```java
 // :contract:usercenter（bridge-contract-usercenter）：用户中心/账号
-public final class UsercenterSchema {
+public final class UserCenterSchema {
     public static final String MODULE = "usercenter";
     public static final int    VERSION = 1;
 
@@ -335,7 +335,7 @@ public final class UsercenterSchema {
 | **模块前缀** | `<module>.` 全局唯一，topic 一律带前缀 | `media.` / `usercenter.` / `navi.` |
 | **topic 命名** | `<module>.<action>`，小写点分 | `media.play` / `usercenter.account.state` |
 | **错误码区间** | 0=OK；1–999 SDK 保留；每模块分配一段 ≥1000 | media 1000–1999；usercenter 2000–2999 |
-| **schemaVersion** | 模块自管自己的版本号 | `UsercenterSchema.VERSION=1` |
+| **schemaVersion** | 模块自管自己的版本号 | `UserCenterSchema.VERSION=1` |
 
 > 全局分配表（模块前缀 + 错误码区间）由 SDK 团队维护一份登记文档；新模块接入前先登记前缀与区间——这是去中心化方案里**唯一的中心化协调点**。
 >
@@ -421,9 +421,9 @@ public class HostService extends Service {
   public void onCreate() {
     super.onCreate();
     bridgeHost = Bridge.attachHost(this);          // 把 Bridge 内核挂到宿主进程
-    bridgeHost.register(UsercenterSchema.MODULE);
-    bridgeHost.onRequest(UsercenterSchema.GET_ACCOUNT, (req, resp) -> resp.ok(currentAccountJson()));
-    // 账号变化时：bridgeHost.publish(UsercenterSchema.ACCOUNT_STATE, accountJson());
+    bridgeHost.register(UserCenterSchema.MODULE);
+    bridgeHost.onRequest(UserCenterSchema.GET_ACCOUNT, (req, resp) -> resp.ok(currentAccountJson()));
+    // 账号变化时：bridgeHost.publish(UserCenterSchema.ACCOUNT_STATE, accountJson());
   }
   public IBinder onBind(Intent intent) {
     if (BridgeNodeHost.ACTION.equals(intent.getAction())) return bridgeHost.getBinder(); // Bridge 通道
@@ -445,9 +445,9 @@ public class NaviApp extends Application {
   public void onCreate() {
     super.onCreate();
     Bridge.initLite(this);                          // 只起客户端：主动 bind 目标 + attach 回调
-    Bridge.register(UsercenterSchema.MODULE);
-    Bridge.subscribe(UsercenterSchema.ACCOUNT_STATE, p -> updateAccountUi(p)); // 订阅账号状态
-    Bridge.request(UsercenterSchema.GET_ACCOUNT, "{}", reply, 3000);           // 首屏主动拉一次
+    Bridge.register(UserCenterSchema.MODULE);
+    Bridge.subscribe(UserCenterSchema.ACCOUNT_STATE, p -> updateAccountUi(p)); // 订阅账号状态
+    Bridge.request(UserCenterSchema.GET_ACCOUNT, "{}", reply, 3000);           // 首屏主动拉一次
   }
 }
 ```

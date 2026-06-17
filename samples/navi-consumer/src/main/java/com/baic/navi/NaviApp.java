@@ -6,8 +6,8 @@ import android.os.Looper;
 
 import com.baic.bridge.contract.media.MediaClient;
 import com.baic.bridge.contract.media.MediaSchema;
-import com.baic.bridge.contract.usercenter.UsercenterClient;
-import com.baic.bridge.contract.usercenter.UsercenterSchema;
+import com.baic.bridge.contract.usercenter.UserCenterClient;
+import com.baic.bridge.contract.usercenter.UserCenterSchema;
 import com.baic.bridge.core.Bridge;
 import com.baic.bridge.core.BridgeReply;
 
@@ -29,15 +29,15 @@ public class NaviApp extends Application {
     public void onCreate() {
         super.onCreate();
         Bridge.initLite(this);                          // 纯客户端：无 Service，主动连 + attach 回调
-        Bridge.register(UsercenterSchema.MODULE);
+        Bridge.register(UserCenterSchema.MODULE);
         Bridge.register(MediaSchema.MODULE);
-        UsercenterClient.subscribeAccountState(payload -> push("账号推送: " + payload));
+        UserCenterClient.subscribeAccountState(payload -> push("账号推送: " + payload));
         MediaClient.subscribeState(payload -> push("媒体状态: " + payload));
     }
 
     /** 主动拉取账号（首屏兜底）。 */
     public static void pullAccount() {
-        UsercenterClient.getAccount(new BridgeReply() {
+        UserCenterClient.getAccount(new BridgeReply() {
             @Override public void onSuccess(String p) { push("账号拉取: " + p); }
             @Override public void onError(int code, String msg) { push("账号拉取失败 code=" + code + " " + msg); }
         }, 3000);

@@ -4,7 +4,7 @@ package com.baic.bridge.contract.usercenter;
  * 用户中心/账号契约（Bridge SDK §9）。模块标识全链路一致：
  * Gradle 路径 :contract:usercenter = artifactId bridge-contract-usercenter = topic 前缀 usercenter. = MODULE。
  */
-public final class UsercenterSchema {
+public final class UserCenterSchema {
     public static final String MODULE = "usercenter";
     public static final int    VERSION = 1;
 
@@ -20,5 +20,5 @@ public final class UsercenterSchema {
     public static final String K_AVATAR      = "avatar";
     public static final String K_VIP_LEVEL   = "vipLevel";
 
-    private UsercenterSchema() {}
+    private UserCenterSchema() {}
 }
