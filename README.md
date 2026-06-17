@@ -1,4 +1,4 @@
-# CabinLink — Baic座舱服务总线
+# CabinLink 
 
 > 车机座舱多模块跨进程通信中间件，连接车控、电话、导航、多媒体等业务 App，基于 Android Binder / AIDL 构建，兼顾**稳定性**与**低延迟**。
 
