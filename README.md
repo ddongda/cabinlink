@@ -1,4 +1,4 @@
-# CabinLink — 北汽座舱服务总线
+# CabinLink — Baic座舱服务总线
 
 > 车机座舱多模块跨进程通信中间件，连接车控、电话、导航、多媒体等业务 App，基于 Android Binder / AIDL 构建，兼顾**稳定性**与**低延迟**。
 
@@ -356,4 +356,4 @@ cabinlink/
 
 ## License
 
-内部项目，版权归北汽新能源所有。
+内部项目，版权归Baic新能源所有。
