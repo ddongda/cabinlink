@@ -1,0 +1,10 @@
+com.baic.usercenter.account-provider-packaged_res-0 /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/contract/usercenter/build/intermediates/packaged_res/debug
+com.baic.usercenter.account-provider-packaged_res-1 /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/core/lite/build/intermediates/packaged_res/debug
+com.baic.usercenter.account-provider-pngs-2 /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/build/generated/res/pngs/debug
+com.baic.usercenter.account-provider-resValues-3 /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/build/generated/res/resValues/debug
+com.baic.usercenter.account-provider-packageDebugResources-4 /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/build/intermediates/incremental/debug/packageDebugResources/merged.dir
+com.baic.usercenter.account-provider-packageDebugResources-5 /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/build/intermediates/incremental/debug/packageDebugResources/stripped.dir
+com.baic.usercenter.account-provider-merged_res-6 /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/build/intermediates/merged_res/debug
+com.baic.usercenter.account-provider-debug-7 /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/debug/res
+com.baic.usercenter.account-provider-main-8 /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/res
+com.baic.usercenter.account-provider-packaged_res-9 /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/transport/build/intermediates/packaged_res/debug

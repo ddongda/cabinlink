@@ -1,0 +1,69 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.baic.usercenter"
+4    android:versionCode="1"
+5    android:versionName="1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="28"
+9        android:targetSdkVersion="34" />
+10
+11    <permission
+11-->[:core:lite] /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/core/lite/build/intermediates/merged_manifest/debug/AndroidManifest.xml:11:5-13:47
+12        android:name="com.baic.bridge.permission.LINK"
+12-->[:core:lite] /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/core/lite/build/intermediates/merged_manifest/debug/AndroidManifest.xml:12:9-55
+13        android:protectionLevel="signature" />
+13-->[:core:lite] /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/core/lite/build/intermediates/merged_manifest/debug/AndroidManifest.xml:13:9-44
+14
+15    <uses-permission android:name="com.baic.bridge.permission.LINK" />
+15-->[:core:lite] /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/core/lite/build/intermediates/merged_manifest/debug/AndroidManifest.xml:15:5-71
+15-->[:core:lite] /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/core/lite/build/intermediates/merged_manifest/debug/AndroidManifest.xml:15:22-68
+16
+17    <application
+17-->/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:3:5-24:19
+18        android:name="com.baic.usercenter.UsercenterApp"
+18-->/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:4:9-38
+19        android:allowBackup="false"
+19-->/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:6:9-36
+20        android:debuggable="true"
+21        android:extractNativeLibs="false"
+22        android:label="用户中心(账号Provider)" >
+22-->/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:5:9-41
+23
+24        <!-- 模拟"宿主已有 Service"：加一个 Bridge action 复用同一 Service 暴露通道，不新增 Service 类 -->
+25        <service
+25-->/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:9:9-16:19
+26            android:name="com.baic.usercenter.HostService"
+26-->/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:10:13-40
+27            android:exported="true"
+27-->/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:11:13-36
+28            android:permission="com.baic.bridge.permission.LINK" >
+28-->/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:12:13-65
+29            <intent-filter>
+29-->/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:13:13-15:29
+30                <action android:name="com.baic.usercenter.HOST" />
+30-->/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:14:17-67
+30-->/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:14:25-64
+31            </intent-filter>
+32        </service>
+33
+34        <activity
+34-->/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:18:9-23:20
+35            android:name="com.baic.usercenter.MainActivity"
+35-->/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:18:19-47
+36            android:exported="true" >
+36-->/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:18:48-71
+37            <intent-filter>
+37-->/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:19:13-22:29
+38                <action android:name="android.intent.action.MAIN" />
+38-->/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:20:17-69
+38-->/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:20:25-66
+39
+40                <category android:name="android.intent.category.LAUNCHER" />
+40-->/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:21:17-77
+40-->/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:21:27-74
+41            </intent-filter>
+42        </activity>
+43    </application>
+44
+45</manifest>

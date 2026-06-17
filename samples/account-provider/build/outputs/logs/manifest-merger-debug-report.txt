@@ -1,0 +1,82 @@
+-- Merging decision tree log ---
+manifest
+ADDED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:2:1-25:12
+INJECTED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:2:1-25:12
+INJECTED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:2:1-25:12
+INJECTED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:2:1-25:12
+MERGED from [:contract:usercenter] /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/contract/usercenter/build/intermediates/merged_manifest/debug/AndroidManifest.xml:2:1-7:12
+MERGED from [:core:lite] /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/core/lite/build/intermediates/merged_manifest/debug/AndroidManifest.xml:6:1-17:12
+MERGED from [:transport] /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/transport/build/intermediates/merged_manifest/debug/AndroidManifest.xml:2:1-7:12
+	package
+		INJECTED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml
+	android:versionName
+		INJECTED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml
+	android:versionCode
+		INJECTED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml
+	xmlns:android
+		ADDED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:2:11-69
+application
+ADDED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:3:5-24:19
+INJECTED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:3:5-24:19
+	android:extractNativeLibs
+		INJECTED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml
+	android:label
+		ADDED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:5:9-41
+	android:allowBackup
+		ADDED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:6:9-36
+	android:name
+		ADDED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:4:9-38
+service#com.baic.usercenter.HostService
+ADDED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:9:9-16:19
+	android:exported
+		ADDED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:11:13-36
+	android:permission
+		ADDED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:12:13-65
+	android:name
+		ADDED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:10:13-40
+intent-filter#action:name:com.baic.usercenter.HOST
+ADDED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:13:13-15:29
+action#com.baic.usercenter.HOST
+ADDED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:14:17-67
+	android:name
+		ADDED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:14:25-64
+activity#com.baic.usercenter.MainActivity
+ADDED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:18:9-23:20
+	android:exported
+		ADDED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:18:48-71
+	android:name
+		ADDED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:18:19-47
+intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
+ADDED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:19:13-22:29
+action#android.intent.action.MAIN
+ADDED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:20:17-69
+	android:name
+		ADDED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:20:25-66
+category#android.intent.category.LAUNCHER
+ADDED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:21:17-77
+	android:name
+		ADDED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml:21:27-74
+uses-sdk
+INJECTED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml reason: use-sdk injection requested
+INJECTED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml
+INJECTED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml
+MERGED from [:contract:usercenter] /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/contract/usercenter/build/intermediates/merged_manifest/debug/AndroidManifest.xml:5:5-44
+MERGED from [:contract:usercenter] /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/contract/usercenter/build/intermediates/merged_manifest/debug/AndroidManifest.xml:5:5-44
+MERGED from [:core:lite] /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/core/lite/build/intermediates/merged_manifest/debug/AndroidManifest.xml:9:5-44
+MERGED from [:core:lite] /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/core/lite/build/intermediates/merged_manifest/debug/AndroidManifest.xml:9:5-44
+MERGED from [:transport] /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/transport/build/intermediates/merged_manifest/debug/AndroidManifest.xml:5:5-44
+MERGED from [:transport] /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/transport/build/intermediates/merged_manifest/debug/AndroidManifest.xml:5:5-44
+	android:targetSdkVersion
+		INJECTED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml
+	android:minSdkVersion
+		INJECTED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/samples/account-provider/src/main/AndroidManifest.xml
+permission#com.baic.bridge.permission.LINK
+ADDED from [:core:lite] /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/core/lite/build/intermediates/merged_manifest/debug/AndroidManifest.xml:11:5-13:47
+	android:protectionLevel
+		ADDED from [:core:lite] /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/core/lite/build/intermediates/merged_manifest/debug/AndroidManifest.xml:13:9-44
+	android:name
+		ADDED from [:core:lite] /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/core/lite/build/intermediates/merged_manifest/debug/AndroidManifest.xml:12:9-55
+uses-permission#com.baic.bridge.permission.LINK
+ADDED from [:core:lite] /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/core/lite/build/intermediates/merged_manifest/debug/AndroidManifest.xml:15:5-71
+	android:name
+		ADDED from [:core:lite] /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/core/lite/build/intermediates/merged_manifest/debug/AndroidManifest.xml:15:22-68

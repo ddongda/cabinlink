@@ -1,0 +1,1 @@
+com.baic.bridge.core.full

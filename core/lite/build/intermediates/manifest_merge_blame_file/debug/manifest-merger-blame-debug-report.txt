@@ -1,0 +1,22 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<!--
+3 定义并声明使用 Bridge 互连权限（signature 级）：只有同签名 App 才能 bind 彼此的节点 Service。
+4     该权限随 core:lite 合并进每个依赖方；被 bind 的 Service 须加 android:permission 引用它。
+5-->
+6<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+7    package="com.baic.bridge.core" >
+8
+9    <uses-sdk android:minSdkVersion="28" />
+10
+11    <permission
+11-->/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/core/lite/src/main/AndroidManifest.xml:6:5-8:47
+12        android:name="com.baic.bridge.permission.LINK"
+12-->/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/core/lite/src/main/AndroidManifest.xml:7:9-55
+13        android:protectionLevel="signature" />
+13-->/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/core/lite/src/main/AndroidManifest.xml:8:9-44
+14
+15    <uses-permission android:name="com.baic.bridge.permission.LINK" />
+15-->/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/core/lite/src/main/AndroidManifest.xml:10:5-71
+15-->/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/core/lite/src/main/AndroidManifest.xml:10:22-68
+16
+17</manifest>
