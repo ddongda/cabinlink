@@ -1,0 +1,10 @@
+#Wed Jun 17 10:16:58 CST 2026
+base.2=/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/link-kernel/build/intermediates/dex/debug/mergeProjectDexDebug/9/classes.dex
+path.2=9/classes.dex
+base.1=/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/link-kernel/build/intermediates/dex/debug/mergeProjectDexDebug/0/classes.dex
+path.1=0/classes.dex
+base.0=/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/link-kernel/build/intermediates/dex/debug/mergeLibDexDebug/8/classes.dex
+renamed.2=classes3.dex
+renamed.1=classes2.dex
+renamed.0=classes.dex
+path.0=8/classes.dex

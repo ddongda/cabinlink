@@ -1,0 +1,16 @@
+-- Merging decision tree log ---
+manifest
+ADDED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/contract-car/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest9313089553227590673.xml:2:13-83
+INJECTED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/contract-car/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest9313089553227590673.xml:2:13-83
+	package
+		INJECTED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/contract-car/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest9313089553227590673.xml
+	xmlns:android
+		ADDED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/contract-car/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest9313089553227590673.xml:2:23-81
+uses-sdk
+INJECTED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/contract-car/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest9313089553227590673.xml reason: use-sdk injection requested
+INJECTED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/contract-car/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest9313089553227590673.xml
+INJECTED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/contract-car/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest9313089553227590673.xml
+	android:targetSdkVersion
+		INJECTED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/contract-car/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest9313089553227590673.xml
+	android:minSdkVersion
+		INJECTED from /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/contract-car/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest9313089553227590673.xml

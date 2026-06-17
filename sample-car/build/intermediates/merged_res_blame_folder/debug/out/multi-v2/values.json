@@ -1,0 +1,26 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.baic.sample.car.sample-car-mergeDebugResources-5:/values/values.xml",
+            "map": [
+                {
+                    "source": "/Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/sample-car/src/main/res/values/strings.xml",
+                    "from": {
+                        "startLines": "0",
+                        "startColumns": "11",
+                        "startOffsets": "11",
+                        "endColumns": "54",
+                        "endOffsets": "54"
+                    },
+                    "to": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "47",
+                        "endOffsets": "98"
+                    }
+                }
+            ]
+        }
+    ]
+}

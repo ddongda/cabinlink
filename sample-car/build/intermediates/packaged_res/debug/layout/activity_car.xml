@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:padding="24dp" android:background="#1A1A2E">
+    <TextView android:id="@+id/tv_status" android:textColor="#FFB86C" android:textSize="14sp"
+        android:fontFamily="monospace" android:padding="12dp" android:background="#0F3460"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"/>
+    <Button android:id="@+id/btn_can_temp" android:text="模拟CAN: 温度突变18℃"
+        android:layout_width="match_parent" android:layout_height="wrap_content"/>
+    <Button android:id="@+id/btn_alert" android:text="发告警事件(滤芯)"
+        android:layout_width="match_parent" android:layout_height="wrap_content"/>
+</LinearLayout>

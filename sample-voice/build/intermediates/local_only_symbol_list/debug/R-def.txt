@@ -1,0 +1,8 @@
+R_DEF: Internal format may change without notice
+local
+id btn_24
+id btn_ac_on
+id btn_read
+id tv_log
+layout activity_voice
+string app_name

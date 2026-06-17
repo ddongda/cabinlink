@@ -1,0 +1,5 @@
+com.baic.sample.car:string/app_name = 0x7f030000
+com.baic.sample.car:layout/activity_car = 0x7f020000
+com.baic.sample.car:id/tv_status = 0x7f010002
+com.baic.sample.car:id/btn_can_temp = 0x7f010001
+com.baic.sample.car:id/btn_alert = 0x7f010000
