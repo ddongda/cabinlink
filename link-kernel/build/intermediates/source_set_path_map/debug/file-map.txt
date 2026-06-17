@@ -1,8 +1,0 @@
-com.baic.cabinlink.kernel.link-kernel-pngs-0 /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/link-kernel/build/generated/res/pngs/debug
-com.baic.cabinlink.kernel.link-kernel-resValues-1 /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/link-kernel/build/generated/res/resValues/debug
-com.baic.cabinlink.kernel.link-kernel-packageDebugResources-2 /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/link-kernel/build/intermediates/incremental/debug/packageDebugResources/merged.dir
-com.baic.cabinlink.kernel.link-kernel-packageDebugResources-3 /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/link-kernel/build/intermediates/incremental/debug/packageDebugResources/stripped.dir
-com.baic.cabinlink.kernel.link-kernel-merged_res-4 /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/link-kernel/build/intermediates/merged_res/debug
-com.baic.cabinlink.kernel.link-kernel-debug-5 /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/link-kernel/src/debug/res
-com.baic.cabinlink.kernel.link-kernel-main-6 /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/link-kernel/src/main/res
-com.baic.cabinlink.kernel.link-kernel-packaged_res-7 /Users/tommac/Documents/workspace/baic_workspaces/Baic-BridgeSdk/cabinlink/link-pipe/build/intermediates/packaged_res/debug
