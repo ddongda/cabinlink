@@ -6,22 +6,21 @@ import android.os.IBinder;
 /**
  * Bridge SDK 统一门面（静态）。业务方只跟这个类打交道。
  *
- * 全量形态：{@link #init} 后由 core:full 的 BridgeNodeService 暴露 {@link #nodeBinder()}。
- * lite 纯客户端：{@link #initLite} 只起客户端，主动连清单节点并 attach 回调。
- * lite 外挂宿主：{@link #attachHost} 拿到 {@link BridgeNodeHost} 在已有 Service 暴露通道。
+ * 唯一初始化入口 {@link #init}。要对外暴露通道的 Service（core:full 自带的 BridgeNodeService，
+ * 或宿主已有 Service）在 onBind 里返回 {@link #nodeBinder()} 即可。
+ * 三种形态（全量自带 Service / 外挂宿主 Service / 纯客户端）的区别只在「依赖哪个 aar + 是否暴露 Service」，
+ * 不在初始化方法——所以只有一个 init。
  */
 public final class Bridge {
 
     private static volatile BridgeCore core;
 
-    /** 全量形态初始化（配合 core:full 的托管 Service）。 */
+    /**
+     * 唯一初始化入口（在 Application.onCreate 调用）。三种形态都用它：
+     * 全量（依赖 core:full，自带 Service）、外挂（宿主 Service.onBind 返回 nodeBinder()）、
+     * 纯客户端（不暴露 Service，只主动连别人）。
+     */
     public static void init(Context ctx) { ensure(ctx); }
-
-    /** lite 纯客户端初始化（无 Service，只主动连别人 + attach 回调）。 */
-    public static void initLite(Context ctx) { ensure(ctx); }
-
-    /** lite 外挂：把内核挂到宿主进程，返回宿主在已有 Service.onBind 里暴露通道用的 Host。 */
-    public static BridgeNodeHost attachHost(Context ctx) { ensure(ctx); return new BridgeNodeHost(core); }
 
     /** 注册模块（声明关心该模块、打开收发开关）。 */
     public static void register(String module) { core().register(module); }
@@ -62,7 +61,7 @@ public final class Bridge {
 
     private static BridgeCore core() {
         BridgeCore c = core;
-        if (c == null) throw new IllegalStateException("Bridge 未初始化，请先调用 Bridge.init/initLite/attachHost");
+        if (c == null) throw new IllegalStateException("Bridge 未初始化，请先调用 Bridge.init(context)");
         return c;
     }
 
