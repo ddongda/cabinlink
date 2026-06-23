@@ -46,7 +46,8 @@ final class BridgeCore {
 
     private final CopyOnWriteArraySet<String> modules = new CopyOnWriteArraySet<>();
     private final ConcurrentHashMap<String, RequestHandler> handlers = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, CopyOnWriteArrayList<EventListener>> listeners = new ConcurrentHashMap<>();
+    // 统一订阅表：精确 topic 与整模块通配（"module.*"）混存，入站按 matches 分发
+    private final CopyOnWriteArrayList<Sub> subs = new CopyOnWriteArrayList<>();
 
     // msgId 去重（有界 LRU），重连补发场景下幂等
     private final LinkedHashMap<String, Boolean> seen =
@@ -172,9 +173,11 @@ final class BridgeCore {
     }
 
     private void handleEvent(BridgeEnvelope env) {
-        CopyOnWriteArrayList<EventListener> ls = listeners.get(env.topic);
-        if (ls != null) for (EventListener l : ls) {
-            try { l.onEvent(env.payload); } catch (Exception e) { Log.w(TAG, "listener 异常 " + e); }
+        for (Sub s : subs) {
+            if (s.matches(env.topic)) {
+                try { s.listener.onEvent(env.topic, env.payload); }
+                catch (Exception e) { Log.w(TAG, "listener 异常 topic=" + env.topic + " " + e); }
+            }
         }
     }
 
@@ -200,9 +203,18 @@ final class BridgeCore {
         broadcastHello();   // 能力变化，重新通告
     }
 
+    /** 单 topic 订阅（旧 API，回调无需 topic）。 */
     void subscribe(String topic, EventListener listener) {
-        listeners.computeIfAbsent(topic, k -> new CopyOnWriteArrayList<>()).add(listener);
+        if (topic == null || listener == null) return;
+        subs.add(new Sub(topic, (t, p) -> listener.onEvent(p)));
         broadcastHello();   // 订阅变化，重新通告，发布方据此推送
+    }
+
+    /** 批量订阅：多个精确 topic 或整模块通配（"module.*"）共用一个带 topic 的回调。 */
+    void subscribePatterns(String[] patterns, TopicEventListener listener) {
+        if (patterns == null || listener == null) return;
+        for (String p : patterns) if (p != null && !p.isEmpty()) subs.add(new Sub(p, listener));
+        broadcastHello();
     }
 
     void publish(String topic, String payload) {
@@ -251,7 +263,10 @@ final class BridgeCore {
         JSONObject o = new JSONObject();
         try {
             o.put("provide", new JSONArray(handlers.keySet()));
-            o.put("subscribe", new JSONArray(listeners.keySet()));
+            // 订阅声明去重；通配项（"module.*"）原样发出，发布端按前缀匹配推送
+            java.util.LinkedHashSet<String> patterns = new java.util.LinkedHashSet<>();
+            for (Sub s : subs) patterns.add(s.pattern);
+            o.put("subscribe", new JSONArray(patterns));
         } catch (Exception ignore) {}
         return newEnv(BridgeEnvelope.TYPE_HELLO, null, o.toString(), null, 0);
     }
@@ -283,5 +298,25 @@ final class BridgeCore {
         if (payload == null) return "";
         try { return new JSONObject(payload).optString("msg", payload); }
         catch (Exception e) { return payload; }
+    }
+
+    /** 一条订阅：精确 topic，或以 "module.*" 表示的整模块前缀通配。 */
+    private static final class Sub {
+        final String pattern;             // 原始声明（精确 topic 或 "module.*"），用于 HELLO 通告
+        final boolean wildcard;
+        final String prefix;              // 通配时的前缀（如 "usercenter."）
+        final TopicEventListener listener;
+
+        Sub(String pattern, TopicEventListener listener) {
+            this.pattern = pattern;
+            this.wildcard = pattern.endsWith(".*");
+            this.prefix = wildcard ? pattern.substring(0, pattern.length() - 1) : pattern; // 去掉末尾 '*'，保留 '.'
+            this.listener = listener;
+        }
+
+        boolean matches(String topic) {
+            if (topic == null) return false;
+            return wildcard ? topic.startsWith(prefix) : pattern.equals(topic);
+        }
     }
 }

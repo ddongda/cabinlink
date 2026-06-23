@@ -258,11 +258,26 @@ if (r.isOk()) { /* r.payload() */ } else { /* r.code() / r.msg() */ }
 ### 7.2 Event（辅）
 
 ```java
-bridge.publish("usercenter.account.state", "{\"loginState\":1,\"userId\":\"u8\"}");
-bridge.subscribe("usercenter.account.state", payload -> refreshAccount(payload));
+Bridge.publish("usercenter.account.state", "{\"loginState\":1,\"userId\":\"u8\"}");
+Bridge.subscribe("usercenter.account.state", payload -> refreshAccount(payload)); // 单 topic
 ```
 
 - publish 推给所有订阅该 topic 的已连接节点；重连恢复后 SDK 自动重订阅；默认 fire-and-forget。
+
+**批量 / 整模块订阅**（链式，回调带 topic 以区分来源；单 topic 仍用上面的 `subscribe`）：
+
+```java
+// 多个精确 topic 共用一个回调
+Bridge.subscribes(UserCenterSchema.ACCOUNT_STATE, MediaSchema.STATE)
+      .on((topic, payload) -> dispatch(topic, payload));
+
+// 整模块：订阅该模块（topic 前缀 "usercenter."）下全部 event
+Bridge.subscribeAll(UserCenterSchema.MODULE)
+      .on((topic, payload) -> dispatch(topic, payload));
+```
+
+- 单 topic 回调用 `EventListener(payload)`；批量/整模块回调用 `TopicEventListener(topic, payload)`，靠 `.on(...)` 链式绑定（`subscribes`/`subscribeAll` 返回 `BridgeSubscription`）。
+- **跨进程推送**：整模块订阅时消费端无法枚举具体 topic，于是在握手 subscribe 清单里声明通配项 `usercenter.*`，发布端按前缀匹配推送——发布方无需感知消费方订了哪些具体 topic（见 §8）。
 
 ### 7.3 错误码
 
@@ -286,6 +301,7 @@ bridge.subscribe("usercenter.account.state", payload -> refreshAccount(payload))
 1. 节点注册 schema → 声明「我提供 request: `media.play/...`；我发布 event: `usercenter.account.state`」。
 2. 建连握手时把声明发给对端 → 对端记 `routeTable[topic] = {nodeId, channel}`。
 3. `request(topic)` 查 routeTable 定向投递；`subscribe(topic)` 把订阅声明广播给所连节点，publish 时据此推送。
+   - 整模块订阅（`subscribeAll(module)`）在声明里以通配项 `module.*` 表示，发布端按**前缀匹配**判断是否推送（精确 topic 与通配项混存于同一订阅表）。
 
 > **注册 schema 即声明 topic** 是去中心化路由的唯一信息来源，也对应「注册 + 集成 aar 才收发」。
 

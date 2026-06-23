@@ -31,8 +31,10 @@ public class NaviApp extends Application {
         Bridge.init(this);                              // 纯客户端：不暴露 Service，仅主动连别人 + attach 回调
         Bridge.register(UserCenterSchema.MODULE);
         Bridge.register(MediaSchema.MODULE);
-        UserCenterClient.subscribeAccountState(payload -> push("账号推送: " + payload));
-        MediaClient.subscribeState(payload -> push("媒体状态: " + payload));
+        // 批量订阅：账号状态 + 媒体状态共用一个回调，按 topic 区分（无需逐个 xxxClient）
+        Bridge.subscribes(UserCenterSchema.ACCOUNT_STATE, MediaSchema.STATE)
+              .on((topic, payload) -> push(topic + ": " + payload));
+        // 也可整模块订阅该模块下全部 event：Bridge.subscribeAll(UserCenterSchema.MODULE).on((t, p) -> ...);
     }
 
     /** 主动拉取账号（首屏兜底）。 */

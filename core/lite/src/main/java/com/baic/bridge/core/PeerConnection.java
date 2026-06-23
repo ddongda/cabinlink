@@ -39,5 +39,14 @@ final class PeerConnection {
     }
 
     boolean provides(String topic)   { return providedTopics.contains(topic); }
-    boolean subscribes(String topic) { return subscribedTopics.contains(topic); }
+
+    /** 对端是否订阅该 topic：精确匹配，或命中其整模块通配声明（"module.*"）。 */
+    boolean subscribes(String topic) {
+        if (topic == null) return false;
+        if (subscribedTopics.contains(topic)) return true;
+        for (String s : subscribedTopics) {
+            if (s.endsWith(".*") && topic.startsWith(s.substring(0, s.length() - 1))) return true;
+        }
+        return false;
+    }
 }

@@ -28,8 +28,24 @@ public final class Bridge {
     /** 提供方：处理某个 request topic。 */
     public static void onRequest(String topic, RequestHandler handler) { core().onRequest(topic, handler); }
 
-    /** 消费方：订阅某个 event topic。 */
+    /** 消费方：订阅单个 event topic（回调无需 topic）。 */
     public static void subscribe(String topic, EventListener listener) { core().subscribe(topic, listener); }
+
+    /**
+     * 消费方：一次订阅多个 event topic，链式绑定回调（回调带 topic 以区分来源）。
+     * 例：{@code Bridge.subscribes(UserCenterSchema.ACCOUNT_STATE, MediaSchema.STATE).on((topic, payload) -> ...)}
+     */
+    public static BridgeSubscription subscribes(String... topics) {
+        return new BridgeSubscription(core(), topics);
+    }
+
+    /**
+     * 消费方：订阅某模块下的所有 event（按 "module." 前缀匹配），链式绑定回调。
+     * 例：{@code Bridge.subscribeAll(UserCenterSchema.MODULE).on((topic, payload) -> ...)}
+     */
+    public static BridgeSubscription subscribeAll(String module) {
+        return new BridgeSubscription(core(), new String[]{ module + ".*" });
+    }
 
     /** 提供方：发布事件给所有订阅者。 */
     public static void publish(String topic, String payload) { core().publish(topic, payload); }

@@ -90,8 +90,18 @@ Bridge.onRequest("media.play", (req, resp) -> {
 
 ```java
 Bridge.publish("usercenter.account.state", accountJson);          // 提供方
-Bridge.subscribe("usercenter.account.state", payload -> { ... }); // 消费方
+Bridge.subscribe("usercenter.account.state", payload -> { ... }); // 消费方：单 topic
+
+// 批量订阅：多个 topic 共用一个回调，回调带 topic 以区分来源
+Bridge.subscribes("usercenter.account.state", "media.state")
+      .on((topic, payload) -> { ... });
+
+// 整模块订阅：该模块（topic 前缀 "usercenter."）下所有 event
+Bridge.subscribeAll("usercenter")
+      .on((topic, payload) -> { ... });
 ```
+
+> 整模块订阅的跨进程推送：消费端在握手里声明通配项 `usercenter.*`，发布端按前缀匹配推送——发布方无需感知消费方订了哪些具体 topic。
 
 ---
 
