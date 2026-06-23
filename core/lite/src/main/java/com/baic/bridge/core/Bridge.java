@@ -25,6 +25,19 @@ public final class Bridge {
     /** 注册模块（声明关心该模块、打开收发开关）。 */
     public static void register(String module) { core().register(module); }
 
+    /** 注册模块并监听状态（onConnected/onReady/onRebooted）。契约门面版本未知时记 0。 */
+    public static void register(String module, ModuleCallback callback) {
+        core().register(module, 0, callback);
+    }
+
+    /** 注册模块并监听状态，同时上报契约门面版本（供启动/排查日志）。 */
+    public static void register(String module, int contractVersion, ModuleCallback callback) {
+        core().register(module, contractVersion, callback);
+    }
+
+    /** 查询模块是否就绪（提供方已连接且握手完成）。 */
+    public static boolean isReady(String module) { return core().isReady(module); }
+
     /** 提供方：处理某个 request topic。 */
     public static void onRequest(String topic, RequestHandler handler) { core().onRequest(topic, handler); }
 
