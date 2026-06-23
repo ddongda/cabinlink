@@ -62,11 +62,12 @@ final class ConnectionManager {
                 core.linkDeath(pc);
                 core.attachTo(remote);     // 双向：把本端回调通道交给对端
                 core.sendHelloTo(pc);      // 声明本端 provide/subscribe
+                core.onPeerConnected(n.id); // bind 成功 → 触发该节点模块的 onConnected（排查日志）
                 Log.i(TAG, "已连接 " + n.id);
             }
             @Override public void onServiceDisconnected(ComponentName name) {
                 Log.w(TAG, "连接断开 " + n.id + "（等待 BIND_AUTO_CREATE 自动恢复）");
-                peers.remove(n.id);
+                core.onPeerLost(n.id);     // 移除 + 重算模块就绪
             }
         };
 
