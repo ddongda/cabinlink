@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit;
 final class ConnectionManager {
     private static final String TAG = "Bridge.Conn";
     private static final long BACKOFF_START = 1000L;
-    private static final long BACKOFF_MAX   = 30000L;
+    private static final long BACKOFF_MAX = 30000L;
 
     private final Context ctx;
     private final BridgeCore core;
@@ -32,7 +32,9 @@ final class ConnectionManager {
     private final ConcurrentHashMap<String, Long> backoff = new ConcurrentHashMap<>();
 
     ConnectionManager(Context ctx, BridgeCore core, ScheduledExecutorService scheduler) {
-        this.ctx = ctx; this.core = core; this.scheduler = scheduler;
+        this.ctx = ctx;
+        this.core = core;
+        this.scheduler = scheduler;
     }
 
     void connectAll(List<NodeDescriptor> nodes, String selfId) {
@@ -54,7 +56,8 @@ final class ConnectionManager {
         }
 
         final ServiceConnection conn = new ServiceConnection() {
-            @Override public void onServiceConnected(ComponentName name, IBinder binder) {
+            @Override
+            public void onServiceConnected(ComponentName name, IBinder binder) {
                 backoff.remove(n.id);
                 IBridgeNode remote = IBridgeNode.Stub.asInterface(binder);
                 PeerConnection pc = new PeerConnection(n.id, remote);
@@ -65,7 +68,9 @@ final class ConnectionManager {
                 core.onPeerConnected(n.id); // bind 成功 → 触发该节点模块的 onConnected（排查日志）
                 Log.i(TAG, "已连接 " + n.id);
             }
-            @Override public void onServiceDisconnected(ComponentName name) {
+
+            @Override
+            public void onServiceDisconnected(ComponentName name) {
                 Log.w(TAG, "连接断开 " + n.id + "（等待 BIND_AUTO_CREATE 自动恢复）");
                 core.onPeerLost(n.id);     // 移除 + 重算模块就绪
             }
@@ -73,6 +78,9 @@ final class ConnectionManager {
 
         boolean ok;
         try {
+            Log.i(TAG, "发起连接 node=" + n.id + " action=" + n.action
+                    + (n.component != null ? " component=" + n.component : "")
+                    + " modules=" + n.modules);
             ok = ctx.bindService(intent, conn, Context.BIND_AUTO_CREATE);
         } catch (Exception e) {
             ok = false;
@@ -80,7 +88,10 @@ final class ConnectionManager {
         }
         if (!ok) {
             Log.w(TAG, "bindService 返回 false（可能开机竞速），退避重连 " + n.id);
-            try { ctx.unbindService(conn); } catch (Exception ignore) {}
+            try {
+                ctx.unbindService(conn);
+            } catch (Exception ignore) {
+            }
             scheduleReconnect(n);
         }
     }
