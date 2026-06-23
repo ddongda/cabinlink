@@ -48,6 +48,10 @@ final class BridgeCore {
     private final ConcurrentHashMap<String, RequestHandler> handlers = new ConcurrentHashMap<>();
     // 统一订阅表：精确 topic 与整模块通配（"module.*"）混存，入站按 matches 分发
     private final CopyOnWriteArrayList<Sub> subs = new CopyOnWriteArrayList<>();
+    // 每个已注册模块的就绪状态 + 回调
+    private final ConcurrentHashMap<String, ModuleState> moduleStates = new ConcurrentHashMap<>();
+    // 节点id → 它提供的模块（来自静态清单），仅用于 onConnected 归属
+    private final ConcurrentHashMap<String, java.util.Set<String>> nodeModules = new ConcurrentHashMap<>();
 
     // msgId 去重（有界 LRU），重连补发场景下幂等
     private final LinkedHashMap<String, Boolean> seen =
@@ -82,8 +86,14 @@ final class BridgeCore {
 
     void start() {
         List<NodeDescriptor> nodes = NodeRegistry.load(ctx);
+        for (NodeDescriptor n : nodes) {
+            if (n.id != null && !n.modules.isEmpty()) nodeModules.put(n.id, n.modules);
+        }
         connections.connectAll(nodes, selfId);
-        Log.i(TAG, "Bridge 启动 self=" + selfId + " 清单节点数=" + nodes.size());
+        Log.i(TAG, "==== Bridge SDK 启动 ==== self=" + selfId);
+        Log.i(TAG, "SDK版本=" + BuildConfig.SDK_VERSION + " gitSha=" + BuildConfig.GIT_SHA
+                + " 构建=" + BuildConfig.BUILD_TIME + " 传输ABI=" + BridgeEnvelope.ABI_VERSION
+                + " 清单节点数=" + nodes.size());
     }
 
     // ───────────────────────── 供 ConnectionManager 调用 ─────────────────────────
@@ -101,9 +111,12 @@ final class BridgeCore {
             final IBinder b = pc.remote.asBinder();
             b.linkToDeath(new IBinder.DeathRecipient() {
                 @Override public void binderDied() {
-                    Log.w(TAG, "对端死亡 " + pc.peerId + "，清理路由 + 失败该对端在途请求");
-                    connections.peers.remove(pc.peerId);
-                    rpc.failPeer(pc.peerId, BridgeErrors.E_NOT_CONNECTED, "对端已断开");
+                    Log.w(TAG, "提供方死亡 " + pc.peerId + "，清理路由 + 失败该对端在途请求");
+                    worker.execute(() -> {
+                        connections.peers.remove(pc.peerId);
+                        rpc.failPeer(pc.peerId, BridgeErrors.E_NOT_CONNECTED, "对端已断开");
+                        reevaluateAll();
+                    });
                 }
             }, 0);
         } catch (Exception e) {
@@ -136,6 +149,7 @@ final class BridgeCore {
             applyTopics(pc.providedTopics, o.optJSONArray("provide"));
             applyTopics(pc.subscribedTopics, o.optJSONArray("subscribe"));
             Log.i(TAG, "握手 from " + env.source + " provide=" + pc.providedTopics + " subscribe=" + pc.subscribedTopics);
+            reevaluateAll();   // 提供方能力到位，重算各模块就绪
         } catch (Exception e) {
             Log.w(TAG, "解析 HELLO 失败 " + e);
         }
@@ -196,7 +210,81 @@ final class BridgeCore {
 
     // ───────────────────────── 对外 API（经统一门面 Bridge）─────────────────────────
 
-    void register(String module) { if (module != null) modules.add(module); }
+    void register(String module) { register(module, 0, null); }
+
+    void register(String module, int contractVersion, ModuleCallback cb) {
+        if (module == null) return;
+        modules.add(module);
+        ModuleState st = moduleStates.computeIfAbsent(module, m -> new ModuleState(m, contractVersion));
+        if (cb != null) st.callbacks.add(cb);
+        Log.i(TAG, "注册模块 " + module + " 契约门面版本=" + contractVersion + " callback=" + (cb != null));
+        worker.execute(() -> reevaluate(module));   // 提供方可能已就绪，补一次评估
+    }
+
+    boolean isReady(String module) {
+        ModuleState st = moduleStates.get(module);
+        return st != null && st.isReady();
+    }
+
+    /** 该模块是否存在握手完成、provide 了其前缀 topic 的提供方。 */
+    private boolean evaluateReady(String module) {
+        String prefix = module + ".";
+        for (PeerConnection pc : connections.peers.values()) {
+            for (String t : pc.providedTopics) if (t != null && t.startsWith(prefix)) return true;
+        }
+        return false;
+    }
+
+    /** worker 线程：推进单模块状态并触发回调/日志。 */
+    private void reevaluate(String module) {
+        ModuleState st = moduleStates.get(module);
+        if (st == null) return;
+        switch (st.applyReadiness(evaluateReady(module))) {
+            case READY:
+                Log.i(TAG, "模块就绪 " + module);
+                for (ModuleCallback cb : st.callbacks) safe(cb::onReady);
+                break;
+            case REBOOTED:
+                Log.i(TAG, "模块提供方重启恢复 " + module);
+                for (ModuleCallback cb : st.callbacks) safe(cb::onRebooted);
+                break;
+            case LOST:
+                Log.w(TAG, "模块提供方已离线 " + module);
+                break;
+            default: break;
+        }
+    }
+
+    private void reevaluateAll() {
+        for (String m : moduleStates.keySet()) reevaluate(m);
+    }
+
+    /** bind 成功（onServiceConnected）—— 对该节点提供的模块触发 onConnected（排查日志用）。 */
+    void onPeerConnected(String nodeId) {
+        worker.execute(() -> {
+            java.util.Set<String> mods = nodeModules.get(nodeId);
+            if (mods == null) return;
+            for (String m : mods) {
+                ModuleState st = moduleStates.get(m);
+                if (st != null) {
+                    Log.i(TAG, "模块节点已连接 module=" + m + " node=" + nodeId);
+                    for (ModuleCallback cb : st.callbacks) safe(cb::onConnected);
+                }
+            }
+        });
+    }
+
+    /** 连接断开（onServiceDisconnected）—— 移除并重算模块。 */
+    void onPeerLost(String nodeId) {
+        worker.execute(() -> {
+            connections.peers.remove(nodeId);
+            reevaluateAll();
+        });
+    }
+
+    private static void safe(Runnable r) {
+        try { r.run(); } catch (Exception e) { Log.w(TAG, "模块回调异常 " + e); }
+    }
 
     void onRequest(String topic, RequestHandler handler) {
         handlers.put(topic, handler);
@@ -226,7 +314,14 @@ final class BridgeCore {
 
     void request(String topic, String payload, BridgeReply reply, long timeoutMs) {
         PeerConnection provider = findProvider(topic);
-        if (provider == null) { reply.onError(BridgeErrors.E_NO_PROVIDER, "无节点提供 " + topic); return; }
+        if (provider == null) {
+            String module = Topics.moduleOf(topic);
+            Log.w(TAG, "request 调用时模块未就绪 topic=" + topic + " module=" + module
+                    + " isReady=" + isReady(module)
+                    + "，当前无提供方，返回 E_NO_PROVIDER；建议等 onReady 回调后再调用");
+            reply.onError(BridgeErrors.E_NO_PROVIDER, "无节点提供 " + topic);
+            return;
+        }
         String corr = UUID.randomUUID().toString();
         rpc.register(corr, provider.peerId, reply, timeoutMs);
         boolean sent = provider.send(newEnv(BridgeEnvelope.TYPE_REQUEST, topic, payload, corr, 0));
