@@ -4,11 +4,13 @@
     {
       "id": "com.baic.usercenter",
       "action": "com.baic.usercenter.HOST",
-      "component": "com.baic.usercenter/.HostService"
+      "component": "com.baic.usercenter/.HostService",
+      "modules": ["usercenter"]
     },
     {
       "id": "com.baic.media",
-      "action": "com.baic.bridge.NODE"
+      "action": "com.baic.bridge.NODE",
+      "modules": ["media"]
     }
   ]
 }
