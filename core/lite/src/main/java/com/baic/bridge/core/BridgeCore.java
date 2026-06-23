@@ -191,7 +191,7 @@ final class BridgeCore {
         sendHelloTo(pc);   // 回握，让对端知道本端 provide/subscribe
     }
 
-    // ───────────────────────── 对外 API（经 Bridge / BridgeNodeHost）─────────────────────────
+    // ───────────────────────── 对外 API（经统一门面 Bridge）─────────────────────────
 
     void register(String module) { if (module != null) modules.add(module); }
 

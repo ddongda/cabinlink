@@ -4,29 +4,26 @@ import android.app.Application;
 
 import com.baic.bridge.contract.usercenter.UserCenterSchema;
 import com.baic.bridge.core.Bridge;
-import com.baic.bridge.core.BridgeNodeHost;
 
 import org.json.JSONObject;
 
 /**
  * 用户中心 App：lite 外挂形态。在 Application 里把 Bridge 内核挂到进程，
- * 注册账号能力（响应 getAccount + 发布 account.state）。被 HostService.onBind 暴露通道。
+ * 注册账号能力（响应 getAccount + 发布 account.state）。通道由宿主 HostService.onBind
+ * 返回 {@link Bridge#nodeBinder()} 暴露——不新增 Service 类、不增进程。
  */
 public class UserCenterApp extends Application {
 
-    private static BridgeNodeHost host;
     private static volatile String currentAccount = "{\"loginState\":0}";
 
     @Override
     public void onCreate() {
         super.onCreate();
-        host = Bridge.attachHost(this);
-        host.register(UserCenterSchema.MODULE);
+        Bridge.init(this);
+        Bridge.register(UserCenterSchema.MODULE);
         // 提供方：响应首屏主动拉取
-        host.onRequest(UserCenterSchema.GET_ACCOUNT, (req, resp) -> resp.ok(currentAccount));
+        Bridge.onRequest(UserCenterSchema.GET_ACCOUNT, (req, resp) -> resp.ok(currentAccount));
     }
-
-    public static BridgeNodeHost host() { return host; }
 
     /** 模拟登录/切换/登出，更新当前账号并发布事件给所有订阅者（导航、多媒体…）。 */
     public static void updateAccount(int loginState, String userId, String nickname) {
@@ -40,6 +37,6 @@ public class UserCenterApp extends Application {
         } catch (Exception e) {
             currentAccount = "{\"loginState\":" + loginState + "}";
         }
-        if (host != null) host.publish(UserCenterSchema.ACCOUNT_STATE, currentAccount);
+        Bridge.publish(UserCenterSchema.ACCOUNT_STATE, currentAccount);
     }
 }

@@ -76,7 +76,8 @@ CabinLink（main 分支）是**中心化**方案：依赖独立的 `link-kernel`
 │  │ EnvelopeCodec│ Dispatcher   │ AclGuard                 │  │
 │  │ 信封编解码    │ 订阅分发/去重 │ 包名白名单+Binder uid 校验│  │
 │  ├──────────────┴──────────────┴──────────────────────────┤  │
-│  │ BridgeNodeHost：供 lite 宿主在已有 Service 暴露 Stub      │  │
+│  │ Bridge：统一静态门面（init/register/onRequest/...        │  │
+│  │         /publish/subscribe/request/nodeBinder）          │  │
 │  └──────────────────────────────────────────────────────────┘ │
 └───────────────────────────────┬──────────────────────────────┘
                                  │  AIDL（冻结区）
@@ -97,7 +98,7 @@ CabinLink（main 分支）是**中心化**方案：依赖独立的 `link-kernel`
 | Gradle 路径 | artifactId（坐标） | 职责 | 发布 |
 |------------|-------------------|------|------|
 | `:transport` | `bridge-transport` | 唯一 AIDL（`IBridgeNode` + `BridgeEnvelope`），**冻结区** | ✅ |
-| `:core:lite` | `bridge-core-lite` | 发现/连接/重连/编解码/RPC/分发/鉴权/`BridgeNodeHost`，**无 Service** | ✅ |
+| `:core:lite` | `bridge-core-lite` | 发现/连接/重连/编解码/RPC/分发/鉴权，统一静态门面 `Bridge`，**无 Service** | ✅ |
 | `:core:full` | `bridge-core` | = `core-lite` + 自带 `BridgeNodeService`（托管接入） | ✅ |
 | `:contract:template` | `bridge-contract-template` | 契约脚手架模板（供模块团队 copy） | ✅ |
 | `:contract:media` | `bridge-contract-media` | 多媒体 Topic+Schema+门面（**本期样板**） | ✅ |
@@ -394,10 +395,10 @@ public class MediaApp extends Application {
 
 ### 10.2 lite aar —— 存量已有 service 的 App，在已有 service 里挂载
 
-适用：App **已有自己的对外 service / 通信入口**，引入 lite 在已有 service 里挂 Bridge 能力，不新增 Service 类、不增进程。lite 提供无 Service 的内核（含 `BridgeNodeHost`），由宿主决定如何挂载——有两种用法：
+适用：App **已有自己的对外 service / 通信入口**，引入 lite 在已有 service 里挂 Bridge 能力，不新增 Service 类、不增进程。lite 提供无 Service 的内核，统一静态门面 `Bridge`，由宿主决定如何挂载——有两种用法：
 
 ```kotlin
-implementation("com.baic.bridge:bridge-core-lite")             // 无 Service，含 BridgeNodeHost
+implementation("com.baic.bridge:bridge-core-lite")             // 无 Service
 implementation("com.baic.bridge:bridge-contract-usercenter")
 ```
 
@@ -416,23 +417,28 @@ implementation("com.baic.bridge:bridge-contract-usercenter")
 ② 宿主 onBind 按 action 返回 Bridge Stub：
 
 ```java
-public class HostService extends Service {
-  private BridgeNodeHost bridgeHost;   // 来自 bridge-core-lite
+// 在 Application.onCreate 里初始化（与全量形态完全相同的入口）：
+public class UserCenterApp extends Application {
   public void onCreate() {
     super.onCreate();
-    bridgeHost = Bridge.attachHost(this);          // 把 Bridge 内核挂到宿主进程
-    bridgeHost.register(UserCenterSchema.MODULE);
-    bridgeHost.onRequest(UserCenterSchema.GET_ACCOUNT, (req, resp) -> resp.ok(currentAccountJson()));
-    // 账号变化时：bridgeHost.publish(UserCenterSchema.ACCOUNT_STATE, accountJson());
+    Bridge.init(this);                              // 唯一入口，把 Bridge 内核挂到宿主进程
+    Bridge.register(UserCenterSchema.MODULE);
+    Bridge.onRequest(UserCenterSchema.GET_ACCOUNT, (req, resp) -> resp.ok(currentAccountJson()));
+    // 账号变化时：Bridge.publish(UserCenterSchema.ACCOUNT_STATE, accountJson());
   }
+}
+
+// 宿主已有 Service 只需在 onBind 按 action 返回 Bridge 通道：
+public class HostService extends Service {
+  static final String BRIDGE_ACTION = "com.baic.usercenter.HOST";
   public IBinder onBind(Intent intent) {
-    if (BridgeNodeHost.ACTION.equals(intent.getAction())) return bridgeHost.getBinder(); // Bridge 通道
-    return mHostOwnBinder;                                                                // 宿主原有通道
+    if (BRIDGE_ACTION.equals(intent.getAction())) return Bridge.nodeBinder(); // Bridge 通道（IBridgeNode.Stub）
+    return mHostOwnBinder;                                                     // 宿主原有通道
   }
 }
 ```
 
-- 连接方按清单 `component=com.baic.usercenter/.HostService` + `action=com.baic.usercenter.HOST` bind 宿主 service，拿到 `bridgeHost.getBinder()`（即 `IBridgeNode.Stub`）。
+- 连接方按清单 `component=com.baic.usercenter/.HostService` + `action=com.baic.usercenter.HOST` bind 宿主 service，拿到 `Bridge.nodeBinder()`（即 `IBridgeNode.Stub`）。
 - **不新增 Service 类、不增进程、复用宿主生命周期**，只改 intent-filter + onBind 几行。
 - 重连/死亡监听由连接方框架负责，与全量形态一致。
 
@@ -444,7 +450,7 @@ public class HostService extends Service {
 public class NaviApp extends Application {
   public void onCreate() {
     super.onCreate();
-    Bridge.initLite(this);                          // 只起客户端：主动 bind 目标 + attach 回调
+    Bridge.init(this);                              // 只起客户端：主动 bind 目标 + attach 回调（不暴露 Service）
     Bridge.register(UserCenterSchema.MODULE);
     Bridge.subscribe(UserCenterSchema.ACCOUNT_STATE, p -> updateAccountUi(p)); // 订阅账号状态
     Bridge.request(UserCenterSchema.GET_ACCOUNT, "{}", reply, 3000);           // 首屏主动拉一次
@@ -530,7 +536,7 @@ com.baic.usercenter               com.baic.media          com.baic.navi
 cabinlink/
 ├── transport/                   :transport            → bridge-transport（AIDL 冻结区）
 ├── core/
-│   ├── lite/                    :core:lite            → bridge-core-lite（无 Service）+ BridgeNodeHost
+│   ├── lite/                    :core:lite            → bridge-core-lite（无 Service，统一门面 Bridge）
 │   └── full/                    :core:full            → bridge-core（= lite + BridgeNodeService 托管）
 ├── contract/
 │   ├── template/                :contract:template    → bridge-contract-template（脚手架）

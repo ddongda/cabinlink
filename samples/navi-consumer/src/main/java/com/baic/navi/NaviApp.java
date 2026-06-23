@@ -28,7 +28,7 @@ public class NaviApp extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
-        Bridge.initLite(this);                          // 纯客户端：无 Service，主动连 + attach 回调
+        Bridge.init(this);                              // 纯客户端：不暴露 Service，仅主动连别人 + attach 回调
         Bridge.register(UserCenterSchema.MODULE);
         Bridge.register(MediaSchema.MODULE);
         UserCenterClient.subscribeAccountState(payload -> push("账号推送: " + payload));

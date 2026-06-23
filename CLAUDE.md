@@ -25,10 +25,13 @@
 | Gradle 路径 | artifactId | 职责 |
 |---|---|---|
 | `:transport` | `bridge-transport` | 唯一 AIDL（冻结区） |
-| `:core:lite` | `bridge-core-lite` | 内核（无 Service）+ `BridgeNodeHost` |
+| `:core:lite` | `bridge-core-lite` | 内核（无 Service），统一静态门面 `Bridge` |
 | `:core:full` | `bridge-core` | = core:lite + 托管 `BridgeNodeService` |
 | `:contract:usercenter` | `bridge-contract-usercenter` | 用户中心/账号契约样板 |
-| `:samples:account-provider` / `:samples:navi-consumer` | — | lite 挂载 / lite 纯客户端示例 |
+| `:contract:media` | `bridge-contract-media` | 多媒体契约样板（RPC） |
+| `:samples:account-provider` / `:samples:navi-consumer` / `:samples:media-provider` | — | lite 挂载 / lite 纯客户端 / full 自带 Service 示例 |
+
+> 接入只有一个入口 `Bridge.init(ctx)`：三种形态（full 自带 Service / lite 挂宿主 Service / 纯客户端）的差异只在「依赖哪个 aar + 是否在某 Service.onBind 返回 `Bridge.nodeBinder()`」，不在 API。
 
 `docs/20-design/` 放设计文档。
 
