@@ -19,10 +19,20 @@ public class MainActivity extends Activity {
         title.setText("多媒体 · Provider（全量·自带 Service）");
         root.addView(title);
 
-        TextView hint = new TextView(this);
+        final TextView hint = new TextView(this);
         hint.setText("等待消费方调用 media.play / pause / next，并广播 media.state。\n当前状态: " + MediaApp.stateJson());
         root.addView(hint);
 
+        // 注册进程内 UI 钩子：每次处理播放控制后实时刷新本界面（回调在 worker 线程，切主线程）
+        MediaApp.ui = json -> runOnUiThread(() ->
+                hint.setText("已响应消费方播放控制（media.play/pause/next）。\n当前状态: " + json));
+
         setContentView(root);
+    }
+
+    @Override
+    protected void onDestroy() {
+        MediaApp.ui = null;   // 避免静态钩子泄漏 Activity
+        super.onDestroy();
     }
 }

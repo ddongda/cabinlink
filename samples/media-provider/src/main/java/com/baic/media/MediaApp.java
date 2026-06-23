@@ -1,6 +1,7 @@
 package com.baic.media;
 
 import android.app.Application;
+import android.util.Log;
 
 import com.baic.bridge.contract.media.MediaSchema;
 import com.baic.bridge.core.Bridge;
@@ -12,6 +13,12 @@ import org.json.JSONObject;
  * 注册 media.* 的 request 处理器，并在状态变化时 publish media.state。
  */
 public class MediaApp extends Application {
+
+    private static final String TAG = "MediaApp";
+
+    /** 进程内 UI 钩子：状态变化时通知 Activity 刷新（实现方自行切主线程）。 */
+    public interface StateUi { void show(String json); }
+    public static volatile StateUi ui;
 
     private static volatile int playState = 0;     // 0 停 1 播
     private static volatile String title = "（无）";
@@ -52,6 +59,10 @@ public class MediaApp extends Application {
     }
 
     private static void publishState() {
-        Bridge.publish(MediaSchema.STATE, stateJson());
+        String json = stateJson();
+        Log.i(TAG, "处理播放控制，当前状态=" + json);   // provider 侧可观测（排查用）
+        Bridge.publish(MediaSchema.STATE, json);
+        StateUi u = ui;
+        if (u != null) u.show(json);                  // 通知本进程 UI 刷新
     }
 }
