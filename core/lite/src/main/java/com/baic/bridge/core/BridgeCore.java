@@ -274,10 +274,11 @@ final class BridgeCore {
         });
     }
 
-    /** 连接断开（onServiceDisconnected）—— 移除并重算模块。 */
+    /** 连接断开（onServiceDisconnected）—— 移除、失败该对端在途请求并重算模块。 */
     void onPeerLost(String nodeId) {
         worker.execute(() -> {
             connections.peers.remove(nodeId);
+            rpc.failPeer(nodeId, BridgeErrors.E_NOT_CONNECTED, "对端已断开");  // 与 binderDied 路径对齐，避免在途请求空等超时
             reevaluateAll();
         });
     }
