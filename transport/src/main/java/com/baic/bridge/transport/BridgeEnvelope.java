@@ -18,6 +18,9 @@ public final class BridgeEnvelope implements Parcelable {
     public static final int TYPE_HELLO    = 4;
     public static final int TYPE_ERROR    = 5;
 
+    // ── 传输 ABI 版本（仅常量，不改方法签名，不破坏冻结）──
+    public static final int ABI_VERSION   = 1;
+
     // ── Header（通用头部）──
     public String  msgId;          // UUID，端到端幂等去重
     public int     type;           // TYPE_*
