@@ -29,10 +29,17 @@ final class NodeRegistry {
             if (nodes != null) {
                 for (int i = 0; i < nodes.length(); i++) {
                     JSONObject o = nodes.getJSONObject(i);
+                    java.util.Set<String> mods = new java.util.LinkedHashSet<>();
+                    JSONArray ma = o.optJSONArray("modules");
+                    if (ma != null) for (int j = 0; j < ma.length(); j++) {
+                        String m = ma.optString(j, null);
+                        if (m != null && !m.isEmpty()) mods.add(m);
+                    }
                     out.add(new NodeDescriptor(
                             o.optString("id", null),
                             o.optString("action", "com.baic.bridge.NODE"),
-                            o.has("component") ? o.optString("component", null) : null));
+                            o.has("component") ? o.optString("component", null) : null,
+                            mods));
                 }
             }
         } catch (Exception e) {
