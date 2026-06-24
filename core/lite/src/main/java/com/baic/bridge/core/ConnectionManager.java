@@ -42,14 +42,14 @@ final class ConnectionManager {
         return "[" + core.selfId() + "] ";
     }
 
-    void connectAll(List<NodeDescriptor> nodes, String selfId) {
-        for (NodeDescriptor n : nodes) {
-            if (n.id == null || n.id.equals(selfId)) continue;
+    void connectAll(List<ServiceNode> nodes, String selfId) {
+        for (ServiceNode n : nodes) {
+            if (n.pkg == null || n.pkg.equals(selfId)) continue;
             connect(n);
         }
     }
 
-    private void connect(final NodeDescriptor n) {
+    private void connect(final ServiceNode n) {
         final Intent intent = new Intent(n.action);
         if (n.component != null && n.component.contains("/")) {
             String[] parts = n.component.split("/", 2);
@@ -57,42 +57,42 @@ final class ConnectionManager {
             String cls = parts[1].startsWith(".") ? pkg + parts[1] : parts[1];
             intent.setComponent(new ComponentName(pkg, cls));
         } else {
-            intent.setPackage(n.id);  // 全量自带 Service：按包名 + action 隐式解析
+            intent.setPackage(n.pkg);  // 全量自带 Service：按包名 + action 隐式解析
         }
 
         final ServiceConnection conn = new ServiceConnection() {
             @Override
             public void onServiceConnected(ComponentName name, IBinder binder) {
-                backoff.remove(n.id);
+                backoff.remove(n.pkg);
                 IBridgeNode remote = IBridgeNode.Stub.asInterface(binder);
-                PeerConnection pc = new PeerConnection(n.id, remote);
-                peers.put(n.id, pc);
+                PeerConnection pc = new PeerConnection(n.pkg, remote);
+                peers.put(n.pkg, pc);
                 core.linkDeath(pc);
                 core.attachTo(remote);     // 双向：把本端回调通道交给对端
                 core.sendHelloTo(pc);      // 声明本端 provide/subscribe
-                core.onPeerConnected(n.id); // bind 成功 → 触发该节点模块的 onConnected（排查日志）
-                Log.i(TAG, p() + "已连接 " + n.id);
+                core.onPeerConnected(n.pkg); // bind 成功 → 触发该节点模块的 onConnected（排查日志）
+                Log.i(TAG, p() + "已连接 " + n.pkg);
             }
 
             @Override
             public void onServiceDisconnected(ComponentName name) {
-                Log.w(TAG, p() + "连接断开 " + n.id + "（等待 BIND_AUTO_CREATE 自动恢复）");
-                core.onPeerLost(n.id);     // 移除 + 重算模块就绪
+                Log.w(TAG, p() + "连接断开 " + n.pkg + "（等待 BIND_AUTO_CREATE 自动恢复）");
+                core.onPeerLost(n.pkg);     // 移除 + 重算模块就绪
             }
         };
 
         boolean ok;
         try {
-            Log.i(TAG, p() + "发起连接 node=" + n.id + " action=" + n.action
+            Log.i(TAG, p() + "发起连接 node=" + n.pkg + " action=" + n.action
                     + (n.component != null ? " component=" + n.component : "")
                     + " modules=" + n.modules);
             ok = ctx.bindService(intent, conn, Context.BIND_AUTO_CREATE);
         } catch (Exception e) {
             ok = false;
-            Log.w(TAG, p() + "bindService 异常 " + n.id + " " + e);
+            Log.w(TAG, p() + "bindService 异常 " + n.pkg + " " + e);
         }
         if (!ok) {
-            Log.w(TAG, p() + "bindService 返回 false（可能开机竞速），退避重连 " + n.id);
+            Log.w(TAG, p() + "bindService 返回 false（可能开机竞速），退避重连 " + n.pkg);
             try {
                 ctx.unbindService(conn);
             } catch (Exception ignore) {
@@ -101,11 +101,11 @@ final class ConnectionManager {
         }
     }
 
-    private void scheduleReconnect(final NodeDescriptor n) {
-        Long cur = backoff.get(n.id);
+    private void scheduleReconnect(final ServiceNode n) {
+        Long cur = backoff.get(n.pkg);
         long delay = (cur == null) ? BACKOFF_START : cur;
         long next = Math.min(delay * 2, BACKOFF_MAX);
-        backoff.put(n.id, next);
+        backoff.put(n.pkg, next);
         scheduler.schedule(() -> connect(n), delay, TimeUnit.MILLISECONDS);
     }
 }

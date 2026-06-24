@@ -103,9 +103,9 @@ final class BridgeCore {
     }
 
     void start() {
-        List<NodeDescriptor> nodes = NodeRegistry.load(ctx);
-        for (NodeDescriptor n : nodes) {
-            if (n.id != null && !n.modules.isEmpty()) nodeModules.put(n.id, n.modules);
+        List<ServiceNode> nodes = NodeRegistry.load(ctx);
+        for (ServiceNode n : nodes) {
+            if (n.pkg != null && !n.modules.isEmpty()) nodeModules.put(n.pkg, n.modules);
         }
         connections.connectAll(nodes, selfId);
         Log.i(TAG, P + "==== Bridge SDK 启动 ====");

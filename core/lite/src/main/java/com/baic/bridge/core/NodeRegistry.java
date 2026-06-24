@@ -18,8 +18,8 @@ final class NodeRegistry {
     private static final String TAG = "Bridge.Registry";
     private static final String ASSET = "bridge_nodes.json";
 
-    static List<NodeDescriptor> load(Context ctx) {
-        List<NodeDescriptor> out = new ArrayList<>();
+    static List<ServiceNode> load(Context ctx) {
+        List<ServiceNode> out = new ArrayList<>();
         try (InputStream in = ctx.getAssets().open(ASSET)) {
             byte[] buf = new byte[in.available()];
             int n = in.read(buf);
@@ -35,11 +35,11 @@ final class NodeRegistry {
                         String m = ma.optString(j, null);
                         if (m != null && !m.isEmpty()) mods.add(m);
                     }
-                    out.add(new NodeDescriptor(
+                    out.add(new ServiceNode(
                             o.optString("id", null),
                             o.optString("action", "com.baic.bridge.NODE"),
                             o.has("component") ? o.optString("component", null) : null,
-                            mods));
+                            mods, 0));
                 }
             }
         } catch (Exception e) {
