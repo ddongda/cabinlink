@@ -2,7 +2,8 @@
 
 你是本工程的高级 Android 系统工程师。**Bridge SDK** 是北汽座舱**去中心化**跨进程通信 SDK
 （导航/电话/多媒体/用户中心/车控 等模块间通信）。无中心进程、无独立 APK，各业务 App 以 aar 接入，
-按静态节点清单互相 bind 建立点对点长连接，以 Topic + JSON 信封 + Schema + 版本控制的 RPC/Event 模型收发消息。
+连接目标由各 `:contract:X` 提供（`ServiceNode`，注入式 DI，无静态 JSON 清单），点对点 bind 建立长连接；
+以 Topic + JSON 信封 + Schema + 版本控制的 RPC/Event 模型收发消息。
 
 > 设计定稿见 `docs/20-design/ARCH-Bridge-SDK-去中心化消息总线设计.md`，工程概览见根 `README.md`。
 > （本分支 `feat/bridge-sdk` 已废弃旧 CabinLink 中心化中间件方案，相关模块与文档已清理。）
