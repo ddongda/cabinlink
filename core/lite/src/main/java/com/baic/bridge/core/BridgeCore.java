@@ -36,12 +36,21 @@ final class BridgeCore {
     private static final String TAG = "Bridge.Core";
     private static final int DEDUP_CAP = 1024;
 
+    /** Application Context，用于 bindService / PackageManager 等系统调用，避免 Activity 泄漏 */
     private final Context ctx;
+    /** 本端节点 ID，等于宿主包名，全局唯一，用于 Envelope.source 填充与路由寻址 */
     private final String selfId;
+    /** 日志前缀 "[包名] "：多进程 logcat 混排时区分日志来源（TAG 仍为 Bridge.Core，不影响过滤） */
+    private final String P;
+    /** 单线程定时调度器：RPC 超时检测、断线退避重连，daemon 线程 */
     private final ScheduledExecutorService scheduler;
+    /** 单线程串行工作队列：所有入站消息处理均 post 到此线程，消除并发竞争，daemon 线程 */
     private final ExecutorService worker;
+    /** RPC 引擎：管理在途请求（correlationId → 回调）及超时/失败通知 */
     private final RpcEngine rpc;
+    /** 连接管理器：按静态节点清单发起 bindService，维护对端 PeerConnection 生命周期 */
     private final ConnectionManager connections;
+    /** 访问控制守卫：基于 Binder.getCallingUid() 校验消息来源，防 source 字段伪造 */
     private final AclGuard acl;
 
     private final CopyOnWriteArraySet<String> modules = new CopyOnWriteArraySet<>();
@@ -79,6 +88,7 @@ final class BridgeCore {
     BridgeCore(Context ctx) {
         this.ctx = ctx.getApplicationContext();
         this.selfId = this.ctx.getPackageName();
+        this.P = "[" + this.selfId + "] ";
         this.scheduler = Executors.newSingleThreadScheduledExecutor(daemon("bridge-sched"));
         this.worker = Executors.newSingleThreadExecutor(daemon("bridge-worker"));
         this.rpc = new RpcEngine(scheduler);
@@ -100,8 +110,8 @@ final class BridgeCore {
             if (n.id != null && !n.modules.isEmpty()) nodeModules.put(n.id, n.modules);
         }
         connections.connectAll(nodes, selfId);
-        Log.i(TAG, "==== Bridge SDK 启动 ==== self=" + selfId);
-        Log.i(TAG, "SDK版本=" + BuildConfig.SDK_VERSION + " gitSha=" + BuildConfig.GIT_SHA
+        Log.i(TAG, P + "==== Bridge SDK 启动 ====");
+        Log.i(TAG, P + "SDK版本=" + BuildConfig.SDK_VERSION + " gitSha=" + BuildConfig.GIT_SHA
                 + " 构建=" + BuildConfig.BUILD_TIME + " 传输ABI=" + BridgeEnvelope.ABI_VERSION
                 + " 清单节点数=" + nodes.size());
     }
@@ -120,7 +130,7 @@ final class BridgeCore {
         try {
             remote.attach(localNode, selfId);
         } catch (RemoteException e) {
-            Log.w(TAG, "attach 对端失败 " + e);
+            Log.w(TAG, P + "attach 对端失败 " + e);
         }
     }
 
@@ -130,7 +140,7 @@ final class BridgeCore {
             b.linkToDeath(new IBinder.DeathRecipient() {
                 @Override
                 public void binderDied() {
-                    Log.w(TAG, "提供方死亡 " + pc.peerId + "，清理路由 + 失败该对端在途请求");
+                    Log.w(TAG, P + "提供方死亡 " + pc.peerId + "，清理路由 + 失败该对端在途请求");
                     worker.execute(() -> {
                         connections.peers.remove(pc.peerId);
                         rpc.failPeer(pc.peerId, BridgeErrors.E_NOT_CONNECTED, "对端已断开");
@@ -139,7 +149,7 @@ final class BridgeCore {
                 }
             }, 0);
         } catch (Exception e) {
-            Log.w(TAG, "linkToDeath 失败 " + pc.peerId + " " + e);
+            Log.w(TAG, P + "linkToDeath 失败 " + pc.peerId + " " + e);
         }
     }
 
@@ -178,10 +188,10 @@ final class BridgeCore {
             JSONObject o = new JSONObject(env.payload == null ? "{}" : env.payload);
             applyTopics(pc.providedTopics, o.optJSONArray("provide"));
             applyTopics(pc.subscribedTopics, o.optJSONArray("subscribe"));
-            Log.i(TAG, "握手 from " + env.source + " provide=" + pc.providedTopics + " subscribe=" + pc.subscribedTopics);
+            Log.i(TAG, P + "握手 from " + env.source + " provide=" + pc.providedTopics + " subscribe=" + pc.subscribedTopics);
             reevaluateAll();   // 提供方能力到位，重算各模块就绪
         } catch (Exception e) {
-            Log.w(TAG, "解析 HELLO 失败 " + e);
+            Log.w(TAG, P + "解析 HELLO 失败 " + e);
         }
     }
 
@@ -193,10 +203,10 @@ final class BridgeCore {
     private void handleRequest(final BridgeEnvelope env) {
         final PeerConnection src = connections.peers.get(env.source);
         RequestHandler h = handlers.get(env.topic);
-        Log.d(TAG, "收到请求 topic=" + env.topic + " from=" + env.source + " corr=" + env.correlationId);
+        Log.d(TAG, P + "收到请求 topic=" + env.topic + " from=" + env.source + " corr=" + env.correlationId);
         if (h == null) {
             // 本端未注册该 topic 的处理器：回 E_NO_PROVIDER，让请求方立即失败而非空等超时
-            Log.w(TAG, "收到无处理器的请求 topic=" + env.topic + " from=" + env.source + "，回 E_NO_PROVIDER");
+            Log.w(TAG, P + "收到无处理器的请求 topic=" + env.topic + " from=" + env.source + "，回 E_NO_PROVIDER");
             if (src != null)
                 src.send(newEnv(BridgeEnvelope.TYPE_RESPONSE, env.topic, "{}", env.correlationId, BridgeErrors.E_NO_PROVIDER));
             return;
@@ -208,14 +218,14 @@ final class BridgeCore {
         try {
             h.handle(new BridgeRequest(env.payload), resp);
         } catch (Exception e) {
-            Log.w(TAG, "handler 异常 topic=" + env.topic + " " + e);
+            Log.w(TAG, P + "handler 异常 topic=" + env.topic + " " + e);
             resp.fail(BridgeErrors.E_INTERNAL, "提供方处理异常");
         }
     }
 
     private void handleResponse(BridgeEnvelope env) {
         // 按 correlationId 唤醒在途请求；OK 透传 payload，非 OK 提取错误 msg
-        Log.d(TAG, "收到响应 corr=" + env.correlationId + " code=" + env.code + " from=" + env.source);
+        Log.d(TAG, P + "收到响应 corr=" + env.correlationId + " code=" + env.code + " from=" + env.source);
         if (env.code == BridgeErrors.OK) {
             rpc.complete(env.correlationId, BridgeErrors.OK, env.payload);
         } else {
@@ -232,11 +242,11 @@ final class BridgeCore {
                 try {
                     s.listener.onEvent(env.topic, env.payload);
                 } catch (Exception e) {
-                    Log.w(TAG, "listener 异常 topic=" + env.topic + " " + e);
+                    Log.w(TAG, P + "listener 异常 topic=" + env.topic + " " + e);
                 }
             }
         }
-        Log.d(TAG, "收到事件 topic=" + env.topic + " from=" + env.source + " 命中订阅数=" + hit);
+        Log.d(TAG, P + "收到事件 topic=" + env.topic + " from=" + env.source + " 命中订阅数=" + hit);
     }
 
     private void onAttach(IBridgeNode peer, String peerId) {
@@ -247,10 +257,10 @@ final class BridgeCore {
             pc = new PeerConnection(peerId, peer);
             connections.peers.put(peerId, pc);
             linkDeath(pc);
-            Log.i(TAG, "对端 attach 接入 " + peerId);
+            Log.i(TAG, P + "对端 attach 接入 " + peerId);
         } else {
             pc.remote = peer;   // 对端重连：刷新远端引用
-            Log.i(TAG, "对端 attach 刷新 " + peerId);
+            Log.i(TAG, P + "对端 attach 刷新 " + peerId);
         }
         sendHelloTo(pc);   // 回握，让对端知道本端 provide/subscribe
     }
@@ -266,7 +276,7 @@ final class BridgeCore {
         modules.add(module);
         ModuleState st = moduleStates.computeIfAbsent(module, m -> new ModuleState(m, contractVersion));
         if (cb != null) st.callbacks.add(cb);
-        Log.i(TAG, "注册模块 " + module + " 契约门面版本=" + contractVersion + " callback=" + (cb != null));
+        Log.i(TAG, P + "注册模块 " + module + " 契约门面版本=" + contractVersion + " callback=" + (cb != null));
         worker.execute(() -> reevaluate(module));   // 提供方可能已就绪，补一次评估
     }
 
@@ -294,15 +304,15 @@ final class BridgeCore {
         if (st == null) return;
         switch (st.applyReadiness(evaluateReady(module))) {
             case READY:
-                Log.i(TAG, "模块就绪 " + module);
+                Log.i(TAG, P + "模块就绪 " + module);
                 for (ModuleCallback cb : st.callbacks) safe(cb::onReady);
                 break;
             case REBOOTED:
-                Log.i(TAG, "模块提供方重启恢复 " + module);
+                Log.i(TAG, P + "模块提供方重启恢复 " + module);
                 for (ModuleCallback cb : st.callbacks) safe(cb::onRebooted);
                 break;
             case LOST:
-                Log.w(TAG, "模块提供方已离线 " + module);
+                Log.w(TAG, P + "模块提供方已离线 " + module);
                 break;
             default:
                 break;
@@ -323,7 +333,7 @@ final class BridgeCore {
             for (String m : mods) {
                 ModuleState st = moduleStates.get(m);
                 if (st != null) {
-                    Log.i(TAG, "模块节点已连接 module=" + m + " node=" + nodeId);
+                    Log.i(TAG, P + "模块节点已连接 module=" + m + " node=" + nodeId);
                     for (ModuleCallback cb : st.callbacks) safe(cb::onConnected);
                 }
             }
@@ -341,17 +351,17 @@ final class BridgeCore {
         });
     }
 
-    private static void safe(Runnable r) {
+    private void safe(Runnable r) {
         try {
             r.run();
         } catch (Exception e) {
-            Log.w(TAG, "模块回调异常 " + e);
+            Log.w(TAG, P + "模块回调异常 " + e);
         }
     }
 
     void onRequest(String topic, RequestHandler handler) {
         handlers.put(topic, handler);
-        Log.i(TAG, "注册请求处理器 topic=" + topic);
+        Log.i(TAG, P + "注册请求处理器 topic=" + topic);
         broadcastHello();   // 能力变化，重新通告，订阅/请求方据此更新对端能力表
     }
 
@@ -361,7 +371,7 @@ final class BridgeCore {
     void subscribe(String topic, EventListener listener) {
         if (topic == null || listener == null) return;
         subs.add(new Sub(topic, (t, p) -> listener.onEvent(p)));
-        Log.i(TAG, "订阅事件 topic=" + topic);
+        Log.i(TAG, P + "订阅事件 topic=" + topic);
         broadcastHello();   // 订阅变化，重新通告，发布方据此推送
     }
 
@@ -371,7 +381,7 @@ final class BridgeCore {
     void subscribePatterns(String[] patterns, TopicEventListener listener) {
         if (patterns == null || listener == null) return;
         for (String p : patterns) if (p != null && !p.isEmpty()) subs.add(new Sub(p, listener));
-        Log.i(TAG, "批量订阅事件 patterns=" + java.util.Arrays.toString(patterns));
+        Log.i(TAG, P + "批量订阅事件 patterns=" + java.util.Arrays.toString(patterns));
         broadcastHello();
     }
 
@@ -382,14 +392,14 @@ final class BridgeCore {
         for (PeerConnection pc : connections.peers.values()) {
             if (pc.subscribes(topic) && pc.send(env)) delivered++;
         }
-        Log.d(TAG, "发布事件 topic=" + topic + " 推送对端数=" + delivered);
+        Log.d(TAG, P + "发布事件 topic=" + topic + " 推送对端数=" + delivered);
     }
 
     void request(String topic, String payload, BridgeReply reply, long timeoutMs) {
         PeerConnection provider = findProvider(topic);
         if (provider == null) {
             String module = Topics.moduleOf(topic);
-            Log.w(TAG, "request 调用时模块未就绪 topic=" + topic + " module=" + module
+            Log.w(TAG, P + "request 调用时模块未就绪 topic=" + topic + " module=" + module
                     + " isReady=" + isReady(module)
                     + "，当前无提供方，返回 E_NO_PROVIDER；建议等 onReady 回调后再调用");
             reply.onError(BridgeErrors.E_NO_PROVIDER, "无节点提供 " + topic);
@@ -398,7 +408,7 @@ final class BridgeCore {
         String corr = UUID.randomUUID().toString();
         rpc.register(corr, provider.peerId, reply, timeoutMs);
         boolean sent = provider.send(newEnv(BridgeEnvelope.TYPE_REQUEST, topic, payload, corr, 0));
-        Log.d(TAG, "发起请求 topic=" + topic + " -> " + provider.peerId + " corr=" + corr
+        Log.d(TAG, P + "发起请求 topic=" + topic + " -> " + provider.peerId + " corr=" + corr
                 + " timeoutMs=" + timeoutMs + " sent=" + sent);
         if (!sent) rpc.complete(corr, BridgeErrors.E_NOT_CONNECTED, "投递失败，对端通道已断");
     }

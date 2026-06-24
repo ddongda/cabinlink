@@ -37,6 +37,11 @@ final class ConnectionManager {
         this.scheduler = scheduler;
     }
 
+    /** 日志前缀 "[包名] "：多进程 logcat 混排时区分来源（TAG 仍为 Bridge.Conn，不影响过滤）。 */
+    private String p() {
+        return "[" + core.selfId() + "] ";
+    }
+
     void connectAll(List<NodeDescriptor> nodes, String selfId) {
         for (NodeDescriptor n : nodes) {
             if (n.id == null || n.id.equals(selfId)) continue;
@@ -66,28 +71,28 @@ final class ConnectionManager {
                 core.attachTo(remote);     // 双向：把本端回调通道交给对端
                 core.sendHelloTo(pc);      // 声明本端 provide/subscribe
                 core.onPeerConnected(n.id); // bind 成功 → 触发该节点模块的 onConnected（排查日志）
-                Log.i(TAG, "已连接 " + n.id);
+                Log.i(TAG, p() + "已连接 " + n.id);
             }
 
             @Override
             public void onServiceDisconnected(ComponentName name) {
-                Log.w(TAG, "连接断开 " + n.id + "（等待 BIND_AUTO_CREATE 自动恢复）");
+                Log.w(TAG, p() + "连接断开 " + n.id + "（等待 BIND_AUTO_CREATE 自动恢复）");
                 core.onPeerLost(n.id);     // 移除 + 重算模块就绪
             }
         };
 
         boolean ok;
         try {
-            Log.i(TAG, "发起连接 node=" + n.id + " action=" + n.action
+            Log.i(TAG, p() + "发起连接 node=" + n.id + " action=" + n.action
                     + (n.component != null ? " component=" + n.component : "")
                     + " modules=" + n.modules);
             ok = ctx.bindService(intent, conn, Context.BIND_AUTO_CREATE);
         } catch (Exception e) {
             ok = false;
-            Log.w(TAG, "bindService 异常 " + n.id + " " + e);
+            Log.w(TAG, p() + "bindService 异常 " + n.id + " " + e);
         }
         if (!ok) {
-            Log.w(TAG, "bindService 返回 false（可能开机竞速），退避重连 " + n.id);
+            Log.w(TAG, p() + "bindService 返回 false（可能开机竞速），退避重连 " + n.id);
             try {
                 ctx.unbindService(conn);
             } catch (Exception ignore) {
