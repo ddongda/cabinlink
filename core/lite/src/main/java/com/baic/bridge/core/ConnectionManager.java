@@ -9,7 +9,6 @@ import android.util.Log;
 
 import com.baic.bridge.transport.IBridgeNode;
 
-import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -30,6 +29,7 @@ final class ConnectionManager {
 
     final ConcurrentHashMap<String, PeerConnection> peers = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Long> backoff = new ConcurrentHashMap<>();
+    private final java.util.Set<String> known = ConcurrentHashMap.newKeySet();  // 已发起连接的 package
 
     ConnectionManager(Context ctx, BridgeCore core, ScheduledExecutorService scheduler) {
         this.ctx = ctx;
@@ -42,14 +42,14 @@ final class ConnectionManager {
         return "[" + core.selfId() + "] ";
     }
 
-    void connectAll(List<ServiceNode> nodes, String selfId) {
-        for (ServiceNode n : nodes) {
-            if (n.pkg == null || n.pkg.equals(selfId)) continue;
-            connect(n);
-        }
+    /** 注入式连接：self 跳过 + 去重（同一 package 只 bind 一次），幂等。 */
+    void connect(ServiceNode n) {
+        if (n == null || n.pkg == null || n.pkg.equals(core.selfId())) return;   // 不连自己
+        if (peers.containsKey(n.pkg) || !known.add(n.pkg)) return;               // 已连接/已发起则跳过
+        doConnect(n);
     }
 
-    private void connect(final ServiceNode n) {
+    private void doConnect(final ServiceNode n) {
         final Intent intent = new Intent(n.action);
         if (n.component != null && n.component.contains("/")) {
             String[] parts = n.component.split("/", 2);
@@ -106,6 +106,6 @@ final class ConnectionManager {
         long delay = (cur == null) ? BACKOFF_START : cur;
         long next = Math.min(delay * 2, BACKOFF_MAX);
         backoff.put(n.pkg, next);
-        scheduler.schedule(() -> connect(n), delay, TimeUnit.MILLISECONDS);
+        scheduler.schedule(() -> doConnect(n), delay, TimeUnit.MILLISECONDS);
     }
 }

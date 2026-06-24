@@ -14,7 +14,6 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -103,15 +102,9 @@ final class BridgeCore {
     }
 
     void start() {
-        List<ServiceNode> nodes = NodeRegistry.load(ctx);
-        for (ServiceNode n : nodes) {
-            if (n.pkg != null && !n.modules.isEmpty()) nodeModules.put(n.pkg, n.modules);
-        }
-        connections.connectAll(nodes, selfId);
         Log.i(TAG, P + "==== Bridge SDK 启动 ====");
         Log.i(TAG, P + "SDK版本=" + BuildConfig.SDK_VERSION + " gitSha=" + BuildConfig.GIT_SHA
-                + " 构建=" + BuildConfig.BUILD_TIME + " 传输ABI=" + BridgeEnvelope.ABI_VERSION
-                + " 清单节点数=" + nodes.size());
+                + " 构建=" + BuildConfig.BUILD_TIME + " 传输ABI=" + BridgeEnvelope.ABI_VERSION);
     }
 
     // ───────────────────────── 供 ConnectionManager 调用 ─────────────────────────
@@ -265,11 +258,20 @@ final class BridgeCore {
 
     // ───────────────────────── 对外 API（经统一门面 Bridge）─────────────────────────
 
+    /** 提供方：声明自身模块（不连接外部，契约版本未知=0）。 */
     void register(String module) {
-        register(module, 0, null);
+        registerModule(module, 0, null);
     }
 
-    void register(String module, int contractVersion, ModuleCallback cb) {
+    /** 消费方：注入依赖节点 —— 连接 + 模块注册 +（可选）就绪回调。 */
+    void register(ServiceNode node, ModuleCallback cb) {
+        if (node == null) return;
+        if (!node.modules.isEmpty()) nodeModules.put(node.pkg, node.modules);  // onConnected 归属
+        for (String module : node.modules) registerModule(module, node.contractVersion, cb);
+        connections.connect(node);   // self 跳过 + 去重在 connect 内
+    }
+
+    private void registerModule(String module, int contractVersion, ModuleCallback cb) {
         if (module == null) return;
         ModuleState st = moduleStates.computeIfAbsent(module, m -> new ModuleState(m, contractVersion));
         if (cb != null) st.callbacks.add(cb);

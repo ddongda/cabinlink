@@ -6,8 +6,8 @@ package com.baic.bridge.core;
  *
  * <pre>
  * Bridge.init(this)
- *       .register(UserCenterSchema.MODULE, UserCenterSchema.VERSION, cb)
- *       .register(MediaSchema.MODULE, MediaSchema.VERSION, cb)
+ *       .register(UserCenterContract.NODE, cb)
+ *       .register(MediaContract.NODE, cb)
  *       .subscribes(UserCenterSchema.ACCOUNT_STATE, MediaSchema.STATE)
  *       .on((topic, payload) -> { ... });
  * </pre>
@@ -19,21 +19,21 @@ public final class BridgeSetup {
 
     private BridgeSetup() {}
 
-    /** 注册模块（声明关心该模块、开启就绪跟踪）。 */
+    /** 提供方：声明自身模块（不连接外部）。 */
     public BridgeSetup register(String module) {
         Bridge.register(module);
         return this;
     }
 
-    /** 注册模块并监听状态（onConnected/onReady/onRebooted）。 */
-    public BridgeSetup register(String module, ModuleCallback callback) {
-        Bridge.register(module, callback);
+    /** 消费方：注入依赖节点（XxxContract.NODE）—— 连接 + 模块注册。 */
+    public BridgeSetup register(ServiceNode node) {
+        Bridge.register(node);
         return this;
     }
 
-    /** 注册模块并监听状态，同时上报契约门面版本（供启动/排查日志）。 */
-    public BridgeSetup register(String module, int contractVersion, ModuleCallback callback) {
-        Bridge.register(module, contractVersion, callback);
+    /** 消费方：注入依赖节点并监听状态（onConnected/onReady/onRebooted）。 */
+    public BridgeSetup register(ServiceNode node, ModuleCallback callback) {
+        Bridge.register(node, callback);
         return this;
     }
 

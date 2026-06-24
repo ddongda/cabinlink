@@ -29,18 +29,14 @@ public final class Bridge {
         return BridgeSetup.INSTANCE;
     }
 
-    /** 注册模块（声明关心该模块、打开收发开关）。 */
+    /** 提供方：声明自身模块（不连接外部）。 */
     public static void register(String module) { core().register(module); }
 
-    /** 注册模块并监听状态（onConnected/onReady/onRebooted）。契约门面版本未知时记 0。 */
-    public static void register(String module, ModuleCallback callback) {
-        core().register(module, 0, callback);
-    }
+    /** 消费方：注入依赖节点（来自 :contract:X 的 XxxContract.NODE）—— 连接 + 模块注册。 */
+    public static void register(ServiceNode node) { core().register(node, null); }
 
-    /** 注册模块并监听状态，同时上报契约门面版本（供启动/排查日志）。 */
-    public static void register(String module, int contractVersion, ModuleCallback callback) {
-        core().register(module, contractVersion, callback);
-    }
+    /** 消费方：注入依赖节点并监听状态（onConnected/onReady/onRebooted）。 */
+    public static void register(ServiceNode node, ModuleCallback callback) { core().register(node, callback); }
 
     /** 查询模块是否就绪（提供方已连接且握手完成）。 */
     public static boolean isReady(String module) { return core().isReady(module); }
