@@ -5,8 +5,10 @@ import android.os.Handler;
 import android.os.Looper;
 
 import com.baic.bridge.contract.media.MediaClient;
+import com.baic.bridge.contract.media.MediaContract;
 import com.baic.bridge.contract.media.MediaSchema;
 import com.baic.bridge.contract.usercenter.UserCenterClient;
+import com.baic.bridge.contract.usercenter.UserCenterContract;
 import com.baic.bridge.contract.usercenter.UserCenterSchema;
 import com.baic.bridge.core.Bridge;
 import com.baic.bridge.core.BridgeReply;
@@ -32,8 +34,8 @@ public class NaviApp extends Application {
         // 链式接入：init 返回 BridgeSetup，注册模块（带状态回调）+ 批量订阅一气呵成。
         // 纯客户端：不暴露 Service，仅主动连别人 + attach 回调。
         Bridge.init(this)
-              .register(UserCenterSchema.MODULE, UserCenterSchema.VERSION, moduleCb("账号"))
-              .register(MediaSchema.MODULE, MediaSchema.VERSION, moduleCb("多媒体"))
+              .register(UserCenterContract.NODE, moduleCb("账号"))
+              .register(MediaContract.NODE, moduleCb("多媒体"))
               // 批量订阅：账号状态 + 媒体状态共用一个回调，按 topic 区分（无需逐个 xxxClient）
               .subscribes(UserCenterSchema.ACCOUNT_STATE, MediaSchema.STATE)
               .on((topic, payload) -> push(topic + ": " + payload));
