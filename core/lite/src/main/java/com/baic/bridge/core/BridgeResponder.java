@@ -10,13 +10,19 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class BridgeResponder {
 
-    /** 由 BridgeCore 注入：把应答封成 RESPONSE 信封投回请求方。 */
-    public interface Sink { void send(int code, String payload); }
+    /**
+     * 由 BridgeCore 注入：把应答封成 RESPONSE 信封投回请求方。
+     */
+    public interface Sink {
+        void send(int code, String payload);
+    }
 
     private final AtomicBoolean done = new AtomicBoolean(false);
     private final Sink sink;
 
-    public BridgeResponder(Sink sink) { this.sink = sink; }
+    public BridgeResponder(Sink sink) {
+        this.sink = sink;
+    }
 
     public void ok(String payload) {
         if (done.compareAndSet(false, true)) sink.send(BridgeErrors.OK, payload == null ? "{}" : payload);
@@ -25,8 +31,11 @@ public final class BridgeResponder {
     public void fail(int code, String msg) {
         if (done.compareAndSet(false, true)) {
             String p;
-            try { p = new JSONObject().put("msg", msg == null ? "" : msg).toString(); }
-            catch (Exception e) { p = "{}"; }
+            try {
+                p = new JSONObject().put("msg", msg == null ? "" : msg).toString();
+            } catch (Exception e) {
+                p = "{}";
+            }
             sink.send(code, p);
         }
     }

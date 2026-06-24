@@ -17,7 +17,7 @@ final class PeerConnection {
 
     final String peerId;
     volatile IBridgeNode remote;
-    final Set<String> providedTopics   = new CopyOnWriteArraySet<>(); // 对端能响应的 request topic
+    final Set<String> providedTopics = new CopyOnWriteArraySet<>(); // 对端能响应的 request topic
     final Set<String> subscribedTopics = new CopyOnWriteArraySet<>(); // 对端订阅的 event topic
 
     PeerConnection(String peerId, IBridgeNode remote) {
@@ -25,7 +25,9 @@ final class PeerConnection {
         this.remote = remote;
     }
 
-    /** 投递信封；底层 deliver 为 oneway，不阻塞。返回 false 表示通道已失效。 */
+    /**
+     * 投递信封；底层 deliver 为 oneway，不阻塞。返回 false 表示通道已失效。
+     */
     boolean send(BridgeEnvelope env) {
         IBridgeNode r = remote;
         if (r == null) return false;
@@ -38,9 +40,13 @@ final class PeerConnection {
         }
     }
 
-    boolean provides(String topic)   { return providedTopics.contains(topic); }
+    boolean provides(String topic) {
+        return providedTopics.contains(topic);
+    }
 
-    /** 对端是否订阅该 topic：精确匹配，或命中其整模块通配声明（"module.*"）。 */
+    /**
+     * 对端是否订阅该 topic：精确匹配，或命中其整模块通配声明（"module.*"）。
+     */
     boolean subscribes(String topic) {
         if (topic == null) return false;
         if (subscribedTopics.contains(topic)) return true;

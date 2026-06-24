@@ -16,14 +16,20 @@ final class RpcEngine {
     private final ScheduledExecutorService scheduler;
     private final ConcurrentHashMap<String, Pending> pending = new ConcurrentHashMap<>();
 
-    RpcEngine(ScheduledExecutorService scheduler) { this.scheduler = scheduler; }
+    RpcEngine(ScheduledExecutorService scheduler) {
+        this.scheduler = scheduler;
+    }
 
     private static final class Pending {
         final BridgeReply reply;
         final String peerId;
         final AtomicBoolean done = new AtomicBoolean(false);
         ScheduledFuture<?> timeoutFuture;
-        Pending(BridgeReply reply, String peerId) { this.reply = reply; this.peerId = peerId; }
+
+        Pending(BridgeReply reply, String peerId) {
+            this.reply = reply;
+            this.peerId = peerId;
+        }
     }
 
     void register(String corr, String peerId, BridgeReply reply, long timeoutMs) {
@@ -34,7 +40,9 @@ final class RpcEngine {
                 timeoutMs, TimeUnit.MILLISECONDS);
     }
 
-    /** code==OK → onSuccess(payloadOrMsg)；否则 onError(code, payloadOrMsg 作为 msg)。 */
+    /**
+     * code==OK → onSuccess(payloadOrMsg)；否则 onError(code, payloadOrMsg 作为 msg)。
+     */
     void complete(String corr, int code, String payloadOrMsg) {
         Pending p = pending.remove(corr);
         if (p == null) return;
@@ -44,7 +52,9 @@ final class RpcEngine {
         else p.reply.onError(code, payloadOrMsg);
     }
 
-    /** 某对端断开时，只快速失败该对端的在途请求，避免悬挂，也不误伤其它对端。 */
+    /**
+     * 某对端断开时，只快速失败该对端的在途请求，避免悬挂，也不误伤其它对端。
+     */
     void failPeer(String peerId, int code, String msg) {
         if (peerId == null) return;
         for (Map.Entry<String, Pending> e : pending.entrySet()) {

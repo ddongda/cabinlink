@@ -22,7 +22,9 @@ public final class BridgeSubscription {
         this.patterns = patterns;
     }
 
-    /** 绑定回调，完成订阅。回调在 SDK worker 线程。 */
+    /**
+     * 绑定回调，完成订阅。回调在 SDK worker 线程。
+     */
     public void on(TopicEventListener listener) {
         core.subscribePatterns(patterns, listener);
     }

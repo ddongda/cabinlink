@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 全量形态：BridgeNodeService 由 core:full 的 aar manifest 自动合并（含 action + signature 权限），此处无需声明 Service。 -->
+
+<!-- 全量形态：BridgeNodeService 由 core:full 的 aar manifest
+自动合并（含 action + signature 权限），此处无需声明 Service。 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
         android:name=".MediaApp"

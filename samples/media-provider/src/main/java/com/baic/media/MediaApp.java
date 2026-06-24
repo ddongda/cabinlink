@@ -16,8 +16,13 @@ public class MediaApp extends Application {
 
     private static final String TAG = "MediaApp";
 
-    /** 进程内 UI 钩子：状态变化时通知 Activity 刷新（实现方自行切主线程）。 */
-    public interface StateUi { void show(String json); }
+    /**
+     * 进程内 UI 钩子：状态变化时通知 Activity 刷新（实现方自行切主线程）。
+     */
+    public interface StateUi {
+        void show(String json);
+    }
+
     public static volatile StateUi ui;
 
     private static volatile int playState = 0;     // 0 停 1 播
@@ -26,27 +31,27 @@ public class MediaApp extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
-        // 链式接入：init 返回 BridgeSetup，注册模块 + 串联多个 request 处理器。
-        Bridge.init(this)
-              .register(MediaSchema.MODULE)
-              .onRequest(MediaSchema.PLAY, (req, resp) -> {
-                  String track = req.get(MediaSchema.K_TRACK_ID);
-                  playState = 1;
-                  title = "曲目 " + (track == null || track.isEmpty() ? "?" : track);
-                  publishState();
-                  resp.ok(stateJson());
-              })
-              .onRequest(MediaSchema.PAUSE, (req, resp) -> {
-                  playState = 0;
-                  publishState();
-                  resp.ok(stateJson());
-              })
-              .onRequest(MediaSchema.NEXT, (req, resp) -> {
-                  playState = 1;
-                  title = "下一曲";
-                  publishState();
-                  resp.ok(stateJson());
-              });
+        // 注册 media.* 的 request 处理器（init 也支持链式：Bridge.init(ctx).register(..).onRequest(..)）。
+        Bridge.init(this);
+        Bridge.onRequest(MediaSchema.PLAY, (req, resp) -> {
+            String track = req.get(MediaSchema.K_TRACK_ID);
+            playState = 1;
+            title = "曲目 " + (track == null || track.isEmpty() ? "?" : track);
+            publishState();
+            resp.ok(stateJson());
+        });
+
+        Bridge.onRequest(MediaSchema.PAUSE, (req, resp) -> {
+            playState = 0;
+            publishState();
+            resp.ok(stateJson());
+        });
+        Bridge.onRequest(MediaSchema.NEXT, (req, resp) -> {
+            playState = 1;
+            title = "下一曲";
+            publishState();
+            resp.ok(stateJson());
+        });
     }
 
     static String stateJson() {
@@ -55,7 +60,9 @@ public class MediaApp extends Application {
                     .put(MediaSchema.K_PLAY_STATE, playState)
                     .put(MediaSchema.K_TITLE, title)
                     .toString();
-        } catch (Exception e) { return "{}"; }
+        } catch (Exception e) {
+            return "{}";
+        }
     }
 
     private static void publishState() {
