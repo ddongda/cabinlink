@@ -51,15 +51,17 @@ final class BridgeCore {
     /** 访问控制守卫：基于 Binder.getCallingUid() 校验消息来源，防 source 字段伪造 */
     private final AclGuard acl;
 
+    // ───── 注册 / 分发 / 状态 五张本端表（分工：provide 能力 / subscribe 订阅 / 模块就绪 / onConnected 归属 / 去重）─────
+    // provide 能力表：本端能响应的 request topic → 处理器。onRequest 写、handleRequest 读；经 HELLO 的 provide 列表通告对端。
     private final ConcurrentHashMap<String, RequestHandler> handlers = new ConcurrentHashMap<>();
-    // 统一订阅表：精确 topic 与整模块通配（"module.*"）混存，入站按 matches 分发
+    // subscribe 订阅表：精确 topic 与整模块通配（"module.*"）混存，入站事件按 Sub.matches 分发；经 HELLO 的 subscribe 列表通告对端。
     private final CopyOnWriteArrayList<Sub> subs = new CopyOnWriteArrayList<>();
-    // 每个已注册模块的就绪状态 + 回调
+    // 模块就绪表：已注册模块 → 就绪状态机 + 回调（onConnected/onReady/onRebooted）。
     private final ConcurrentHashMap<String, ModuleState> moduleStates = new ConcurrentHashMap<>();
-    // 节点id → 它提供的模块（来自静态清单），仅用于 onConnected 归属
+    // 节点归属表：节点包名 → 它提供的模块集合（来自注入的 ServiceNode.modules），仅用于 bind 成功时把 onConnected 归到对应模块。
     private final ConcurrentHashMap<String, java.util.Set<String>> nodeModules = new ConcurrentHashMap<>();
 
-    // msgId 去重（有界 LRU），重连补发场景下幂等
+    // 去重表：msgId 有界 LRU（容量 DEDUP_CAP），重连补发等场景下保证幂等
     private final LinkedHashMap<String, Boolean> seen =
             new LinkedHashMap<String, Boolean>(DEDUP_CAP, 0.75f, true) {
                 @Override
