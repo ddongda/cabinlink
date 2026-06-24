@@ -19,8 +19,15 @@ public final class Bridge {
      * 唯一初始化入口（在 Application.onCreate 调用）。三种形态都用它：
      * 全量（依赖 core:full，自带 Service）、外挂（宿主 Service.onBind 返回 nodeBinder()）、
      * 纯客户端（不暴露 Service，只主动连别人）。
+     *
+     * <p>返回 {@link BridgeSetup} 支持链式接入：
+     * {@code Bridge.init(ctx).register(...).subscribes(...).on(...)}；
+     * 也可忽略返回值，继续用 {@code Bridge.register(...)} 等静态方法，二者等价。
      */
-    public static void init(Context ctx) { ensure(ctx); }
+    public static BridgeSetup init(Context ctx) {
+        ensure(ctx);
+        return BridgeSetup.INSTANCE;
+    }
 
     /** 注册模块（声明关心该模块、打开收发开关）。 */
     public static void register(String module) { core().register(module); }
