@@ -72,6 +72,8 @@
   <p style="opacity:.75;font-size:13px">含背景 · 总体架构 · 方法级链路调用 · 消费方/提供方实现原理</p>
   <div class="badges">
     <span class="badge">去中心化 · 无中心进程</span>
+    <span class="badge">连接契约注入式 DI</span>
+    <span class="badge">模块就绪状态回调</span>
     <span class="badge">Topic + JSON 信封</span>
     <span class="badge">RPC + Event</span>
     <span class="badge">oneway 不阻塞</span>
@@ -118,7 +120,7 @@
     <div class="kpi"><div class="b">G3</div><div class="l">自动重连<br>恢复后业务零感知</div></div>
     <div class="kpi"><div class="b">G4</div><div class="l">低成本接入<br>适配存量 service</div></div>
   </div>
-  <div class="note"><b>关键定位：</b>无独立 broker / kernel APK，<b>去中心化</b>——每个集成 SDK 的 App 都是对等 Node，借 Android 系统的 <code>PackageManager</code> + <code>bindService</code> 作为「发现与连接」中枢，按静态节点清单互相建立点对点长连接。这是相对老项目 N80 的<b>低侵入演进方案</b>（中心化中间件为新项目的终极方案，本期不采纳）。</div>
+  <div class="note"><b>关键定位：</b>无独立 broker / kernel APK，<b>去中心化</b>——每个集成 SDK 的 App 都是对等 Node，借 Android 系统的 <code>bindService</code> 作为「连接」中枢；连接目标由各 <code>:contract:X</code> 提供（<code>ServiceNode</code> 节点坐标，<b>注入式 DI</b>，无静态 JSON 清单），点对点建立长连接。这是相对老项目 N80 的<b>低侵入演进方案</b>（中心化中间件为新项目的终极方案，本期不采纳）。</div>
 </section>
 
 <!-- 2 架构 -->
@@ -147,7 +149,7 @@
     <g font-size="12" fill="#1e293b">
       <rect x="60" y="155" width="220" height="34" rx="6" fill="#fff" stroke="#c4b5fd"/><text x="170" y="177" text-anchor="middle">usercenter：Schema · Client</text>
       <rect x="295" y="155" width="220" height="34" rx="6" fill="#fff" stroke="#c4b5fd"/><text x="405" y="177" text-anchor="middle">media：Schema · Client</text>
-      <rect x="530" y="155" width="300" height="34" rx="6" fill="#fff" stroke="#c4b5fd"/><text x="680" y="177" text-anchor="middle">topic 常量 + payload schema + 强类型门面</text>
+      <rect x="530" y="155" width="300" height="34" rx="6" fill="#fff" stroke="#c4b5fd"/><text x="680" y="177" text-anchor="middle">topic + schema + 门面 + ServiceNode 坐标</text>
     </g>
     <!-- core -->
     <rect x="40" y="224" width="1000" height="150" rx="10" fill="#ecfdf5" stroke="#a7f3d0"/>
@@ -158,7 +160,7 @@
       <rect x="394" y="262" width="160" height="44" rx="6" fill="#fff" stroke="#6ee7b7"/><text x="474" y="282" text-anchor="middle" font-weight="600">ConnectionManager</text><text x="474" y="297" text-anchor="middle" fill="#64748b">建连/重连</text>
       <rect x="566" y="262" width="140" height="44" rx="6" fill="#fff" stroke="#6ee7b7"/><text x="636" y="282" text-anchor="middle" font-weight="600">RpcEngine</text><text x="636" y="297" text-anchor="middle" fill="#64748b">关联/超时</text>
       <rect x="718" y="262" width="140" height="44" rx="6" fill="#fff" stroke="#6ee7b7"/><text x="788" y="282" text-anchor="middle" font-weight="600">AclGuard</text><text x="788" y="297" text-anchor="middle" fill="#64748b">uid 校验</text>
-      <rect x="870" y="262" width="150" height="44" rx="6" fill="#fff" stroke="#6ee7b7"/><text x="945" y="282" text-anchor="middle" font-weight="600">NodeRegistry</text><text x="945" y="297" text-anchor="middle" fill="#64748b">静态清单</text>
+      <rect x="870" y="262" width="150" height="44" rx="6" fill="#fff" stroke="#6ee7b7"/><text x="945" y="282" text-anchor="middle" font-weight="600">ServiceNode</text><text x="945" y="297" text-anchor="middle" fill="#64748b">契约注入坐标</text>
       <rect x="222" y="318" width="160" height="40" rx="6" fill="#fff" stroke="#6ee7b7"/><text x="302" y="343" text-anchor="middle">PeerConnection（对端能力表）</text>
       <rect x="394" y="318" width="312" height="40" rx="6" fill="#fff" stroke="#6ee7b7"/><text x="550" y="343" text-anchor="middle">localNode : IBridgeNode.Stub（deliver / attach）</text>
       <rect x="718" y="318" width="302" height="40" rx="6" fill="#fff" stroke="#6ee7b7"/><text x="869" y="343" text-anchor="middle">worker / scheduler 单线程 · seen 去重 LRU</text>
@@ -200,7 +202,8 @@
 <b>source</b>         <i>// 发送方节点 id（接收侧不信，以 uid 校验）</i>
 <b>correlationId</b>  <i>// REQUEST↔RESPONSE 关联</i>
 <b>code</b>           <i>// 错误码 0=OK</i>
-<b>payload</b>        <i>// JSON 字符串</i></pre>
+<b>payload</b>        <i>// JSON 字符串</i>
+<b>ABI_VERSION=1</b>  <i>// 传输 ABI 版本常量（只增不改签名）</i></pre>
     </div>
     <div>
       <h3>IBridgeNode（唯一 AIDL）</h3>
@@ -219,7 +222,50 @@
       </table>
     </div>
   </div>
-  <div class="note"><b>能力声明的唯一来源</b>是 <code>onRequest</code>(provide) 与 <code>subscribe</code>(subscribe)，经 HELLO 通告对端——<b>无独立 register 步骤</b>，集成 aar + 声明对应 topic 才收发。</div>
+  <div class="note"><b>topic 能力声明的唯一来源</b>是 <code>onRequest</code>(provide) 与 <code>subscribe</code>(subscribe)，经 HELLO 通告对端——无需逐 topic 登记。<code>register</code> 只做两件事：声明<b>模块身份</b>（<code>register(module)</code>）与<b>注入连接坐标</b>（<code>register(ServiceNode)</code>），不重复声明 topic。</div>
+
+  <h3>对端能力表（PeerConnection）与 HELLO 刷新机制</h3>
+  <p>每个 <code>PeerConnection</code> = 一个对端 + 它自报的两张能力清单。能力一变就向所有 peer 重广播 HELLO，对端 <code>handleHello</code> 用 <b>clear+add 全量替换</b>（幂等，天然支持重连补发）。</p>
+  <div class="svgbox">
+  <svg viewBox="0 0 1080 380" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,sans-serif" width="100%" font-size="11.5">
+    <defs>
+      <marker id="hp" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#7c3aed"/></marker>
+      <marker id="hg" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#15803d"/></marker>
+    </defs>
+    <rect x="80" y="14" width="200" height="32" rx="6" fill="#dbeafe" stroke="#93c5fd"/><text x="180" y="35" text-anchor="middle" font-weight="600">节点 X（能力变化方）</text>
+    <rect x="720" y="14" width="230" height="32" rx="6" fill="#ede9fe" stroke="#c4b5fd"/><text x="835" y="35" text-anchor="middle" font-weight="600">节点 Y（持有 X 的能力表）</text>
+    <line x1="180" y1="46" x2="180" y2="240" stroke="#cbd5e1" stroke-dasharray="3 4"/>
+    <line x1="835" y1="46" x2="835" y2="240" stroke="#cbd5e1" stroke-dasharray="3 4"/>
+
+    <text x="185" y="70" text-anchor="start" fill="#475569">onRequest(topic) / subscribe(topic) 改变能力</text>
+    <text x="185" y="88" text-anchor="start" fill="#475569">→ broadcastHello() → buildHello()</text>
+    <text x="185" y="106" text-anchor="start" fill="#64748b">provide=handlers.keySet · subscribe=sub patterns</text>
+    <line x1="180" y1="122" x2="835" y2="122" stroke="#7c3aed" marker-end="url(#hp)"/>
+    <text x="300" y="118" text-anchor="start" fill="#7c3aed">deliver(HELLO){provide, subscribe} · oneway</text>
+
+    <text x="725" y="148" text-anchor="start" fill="#475569" font-weight="600">handleHello（worker 线程串行）：</text>
+    <text x="640" y="166" text-anchor="start" fill="#475569">applyTopics(providedTopics, provide)   // clear + add 全量替换</text>
+    <text x="640" y="184" text-anchor="start" fill="#475569">applyTopics(subscribedTopics, subscribe)</text>
+    <text x="640" y="202" text-anchor="start" fill="#475569">→ reevaluateAll() → evaluateReady(前缀扫描)</text>
+    <line x1="835" y1="214" x2="835" y2="236" stroke="#15803d" marker-end="url(#hg)"/>
+    <text x="690" y="232" text-anchor="start" fill="#15803d">onReady() / onRebooted()</text>
+
+    <rect x="40" y="256" width="520" height="112" rx="8" fill="#f8fafc" stroke="#cbd5e1"/>
+    <text x="56" y="278" text-anchor="start" font-weight="700" fill="#0f172a">PeerConnection（Y 持有的 X）</text>
+    <text x="56" y="300" text-anchor="start" fill="#1e293b">peerId = "com.baic.media"</text>
+    <text x="56" y="320" text-anchor="start" fill="#1e293b">remote = IBridgeNode 代理（volatile，重连刷新）</text>
+    <text x="56" y="340" text-anchor="start" fill="#15803d">providedTopics = {media.play, media.next, media.pause}</text>
+    <text x="56" y="360" text-anchor="start" fill="#2563eb">subscribedTopics = {usercenter.*}</text>
+
+    <rect x="580" y="256" width="460" height="112" rx="8" fill="#eff6ff" stroke="#bfdbfe"/>
+    <text x="596" y="278" text-anchor="start" font-weight="700" fill="#1d4ed8">HELLO 触发时机（4 处）</text>
+    <text x="596" y="300" text-anchor="start" fill="#1e293b">① bind 成功 onServiceConnected → sendHelloTo</text>
+    <text x="596" y="320" text-anchor="start" fill="#1e293b">② 收到 attach → 回握 sendHelloTo</text>
+    <text x="596" y="340" text-anchor="start" fill="#1e293b">③ onRequest 注册处理器 → broadcastHello</text>
+    <text x="596" y="360" text-anchor="start" fill="#1e293b">④ subscribe 新增订阅 → broadcastHello</text>
+  </svg>
+  </div>
+  <p class="legend">查询：<code>provides(topic)</code> 精确匹配（RPC 路由）· <code>subscribes(topic)</code> 精确或 "module.*" 前缀（事件路由）· <code>evaluateReady</code> 扫 providedTopics 前缀（模块就绪）。读在调用线程、写在 worker 线程，故能力集用 <code>CopyOnWriteArraySet</code>。</p>
 </section>
 
 <!-- 4 线程模型 -->
@@ -257,11 +303,11 @@
       <line x1="560" y1="46" x2="560" y2="450"/><line x1="840" y1="46" x2="840" y2="450"/>
     </g>
     <g fill="#1e293b">
-      <text x="100" y="66" text-anchor="start">Bridge.init() → new BridgeCore → start()</text>
+      <text x="100" y="66" text-anchor="start">Bridge.init() → new BridgeCore → start()（仅打印版本横幅）</text>
       <line x1="95" y1="78" x2="280" y2="78" stroke="#2563eb" marker-end="url(#a1)"/>
-      <text x="100" y="74" text-anchor="start" fill="#2563eb" font-size="10.5">connectAll(NodeRegistry.load)</text>
+      <text x="100" y="74" text-anchor="start" fill="#2563eb" font-size="10.5">.register(XxxContract.NODE, cb) → connect(node)</text>
 
-      <text x="285" y="100" text-anchor="start">connect(n)：</text>
+      <text x="285" y="100" text-anchor="start">connect(node)：</text>
       <line x1="280" y1="112" x2="560" y2="112" stroke="#2563eb" marker-end="url(#a1)"/>
       <text x="288" y="108" text-anchor="start" fill="#2563eb" font-size="10.5">bindService(Intent, BIND_AUTO_CREATE)</text>
 
@@ -296,12 +342,14 @@
   </div>
   <pre>Application.onCreate()
 └─ <b>Bridge.init(ctx)</b>
-   └─ new BridgeCore(ctx)   <i>// 建 worker/scheduler/RpcEngine/ConnectionManager/AclGuard</i>
-   └─ <b>BridgeCore.start()</b>
-      ├─ <b>NodeRegistry.load(ctx)</b>            <i>// 读 assets/bridge_nodes.json → List&lt;NodeDescriptor&gt;</i>
-      └─ <b>ConnectionManager.connectAll(nodes, selfId)</b>
-         └─ connect(n)  →  ctx.bindService(Intent(action/component), conn, BIND_AUTO_CREATE)
-                           └─ 返回 false → scheduleReconnect(n)   <i>// 退避重连</i>
+│  └─ new BridgeCore(ctx)   <i>// 建 worker/scheduler/RpcEngine/ConnectionManager/AclGuard</i>
+│  └─ <b>BridgeCore.start()</b>   <i>// 只打印版本横幅，不再读任何清单</i>
+└─ <b>.register(XxxContract.NODE, cb)</b>   <i>// 契约注入节点坐标（ServiceNode：pkg/action/component/module/契约版本）</i>
+   └─ BridgeCore.register(node, cb)
+      ├─ registerModule(module, contractVersion, cb)   <i>// 登记模块 + 就绪回调（onConnected/onReady/onRebooted）</i>
+      └─ <b>ConnectionManager.connect(node)</b>          <i>// 按坐标 bind，已知节点去重 + self 跳过</i>
+         └─ ctx.bindService(Intent(action/component), conn, BIND_AUTO_CREATE)
+            └─ 返回 false → scheduleReconnect(node)   <i>// 退避重连</i>
 [系统拉起对端 Service → onBind 返回 Bridge.nodeBinder()]
 └─ ServiceConnection.<b>onServiceConnected</b>(binder)
    ├─ remote = IBridgeNode.Stub.asInterface(binder); peers.put(id, new PeerConnection)
@@ -311,6 +359,57 @@
 
 对端：localNode.<b>attach</b> → onAttach（建 PeerConnection + 回握）
       localNode.<b>deliver(HELLO)</b> → worker → onInbound → <b>handleHello</b> → 存对端能力表</pre>
+
+  <h3>连接拓扑与寻址：1 对 1 / 多对 1 / 多对多</h3>
+  <p>没有中心注册表：<b>寻址 = 系统按 <code>ServiceNode</code> 坐标解析 Intent</b>（阶段 A 建连）；连上后靠各 peer 的能力表按 topic 路由（阶段 B）。bind 是单向的，<code>attach</code> 交出反向通道后才双工。</p>
+  <div class="svgbox">
+  <svg viewBox="0 0 1080 310" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,sans-serif" width="100%" font-size="11.5">
+    <defs>
+      <marker id="tb" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#2563eb"/></marker>
+      <marker id="tp" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#7c3aed"/></marker>
+    </defs>
+    <line x1="360" y1="14" x2="360" y2="296" stroke="#e2e8f0"/>
+    <line x1="720" y1="14" x2="720" y2="296" stroke="#e2e8f0"/>
+
+    <text x="30" y="30" font-weight="700" fill="#0f172a">1 对 1</text>
+    <rect x="95" y="46" width="170" height="38" rx="6" fill="#dbeafe" stroke="#93c5fd"/><text x="180" y="70" text-anchor="middle">导航（消费方）</text>
+    <rect x="95" y="206" width="170" height="38" rx="6" fill="#dcfce7" stroke="#86efac"/><text x="180" y="230" text-anchor="middle">多媒体（提供方）</text>
+    <line x1="150" y1="84" x2="150" y2="206" stroke="#2563eb" stroke-width="1.6" marker-end="url(#tb)"/>
+    <text x="48" y="148" fill="#2563eb">bindService</text>
+    <line x1="212" y1="206" x2="212" y2="84" stroke="#7c3aed" stroke-width="1.3" stroke-dasharray="3 3" marker-end="url(#tp)"/>
+    <text x="220" y="148" fill="#7c3aed">attach</text>
+    <text x="30" y="274" fill="#475569">建连后全双工：</text>
+    <text x="30" y="290" fill="#475569">双方各持对方 PeerConnection</text>
+
+    <text x="380" y="30" font-weight="700" fill="#0f172a">多 对 1</text>
+    <rect x="380" y="46" width="92" height="34" rx="6" fill="#dbeafe" stroke="#93c5fd"/><text x="426" y="67" text-anchor="middle">导航</text>
+    <rect x="488" y="46" width="92" height="34" rx="6" fill="#dbeafe" stroke="#93c5fd"/><text x="534" y="67" text-anchor="middle">仪表</text>
+    <rect x="596" y="46" width="92" height="34" rx="6" fill="#dbeafe" stroke="#93c5fd"/><text x="642" y="67" text-anchor="middle">语音</text>
+    <rect x="488" y="196" width="120" height="38" rx="6" fill="#dcfce7" stroke="#86efac"/><text x="548" y="220" text-anchor="middle">多媒体（提供方）</text>
+    <line x1="426" y1="80" x2="520" y2="196" stroke="#2563eb" stroke-width="1.3" marker-end="url(#tb)"/>
+    <line x1="534" y1="80" x2="548" y2="196" stroke="#2563eb" stroke-width="1.3" marker-end="url(#tb)"/>
+    <line x1="642" y1="80" x2="576" y2="196" stroke="#2563eb" stroke-width="1.3" marker-end="url(#tb)"/>
+    <text x="380" y="266" fill="#475569">B.onBind 返回同一个 Binder；</text>
+    <text x="380" y="282" fill="#475569">按 getCallingUid()+attach 区分每个消费方</text>
+
+    <text x="740" y="30" font-weight="700" fill="#0f172a">多 对 多（网格）</text>
+    <rect x="758" y="50" width="92" height="34" rx="6" fill="#ede9fe" stroke="#c4b5fd"/><text x="804" y="71" text-anchor="middle">用户中心</text>
+    <rect x="950" y="50" width="92" height="34" rx="6" fill="#ede9fe" stroke="#c4b5fd"/><text x="996" y="71" text-anchor="middle">多媒体</text>
+    <rect x="758" y="196" width="92" height="34" rx="6" fill="#ede9fe" stroke="#c4b5fd"/><text x="804" y="217" text-anchor="middle">导航</text>
+    <rect x="950" y="196" width="92" height="34" rx="6" fill="#ede9fe" stroke="#c4b5fd"/><text x="996" y="217" text-anchor="middle">车控</text>
+    <g stroke="#94a3b8" stroke-width="1.2">
+      <line x1="850" y1="67" x2="950" y2="67"/>
+      <line x1="804" y1="84" x2="804" y2="196"/>
+      <line x1="996" y1="84" x2="996" y2="196"/>
+      <line x1="850" y1="213" x2="950" y2="213"/>
+      <line x1="850" y1="76" x2="958" y2="200"/>
+      <line x1="950" y1="76" x2="842" y2="200"/>
+    </g>
+    <text x="740" y="266" fill="#475569">每对节点仅一条 binding</text>
+    <text x="740" y="282" fill="#475569">（known 去重 + self 跳过）</text>
+  </svg>
+  </div>
+  <p class="legend">实线 = 主动 <code>bindService</code> 方向；紫色虚线 = <code>attach</code> 交出的反向通道。连接键 = 包名；<code>connect()</code> 内 self 跳过 + <code>known</code>/<code>peers</code> 双重去重保证幂等。</p>
 </section>
 
 <!-- 6 RPC -->
@@ -380,6 +479,56 @@ deliver(REQUEST) → onInbound → firstSeen 去重 → acl.verifySource(uid)
 <span style="color:#7dd3fc">// 消费方收响应</span>
 deliver(RESPONSE) → onInbound → <b>handleResponse</b> → <b>rpc.complete</b>(corr, code, payload)
    └─ remove + done.CAS(true) + 取消超时 → reply.<b>onSuccess</b>(payload) / <b>onError</b>(code, msg)</pre>
+
+  <h3>七条结束路径：全部恰好回调一次 reply</h3>
+  <p>无论成功、超时、对端无 handler、对端异常、投递失败还是对端崩溃，最终都精确触发一次 <code>onSuccess</code> 或 <code>onError</code>——靠 <code>pending.remove</code> + <code>done.CAS</code> 双保险。</p>
+  <div class="svgbox">
+  <svg viewBox="0 0 1080 440" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,sans-serif" width="100%" font-size="11.5">
+    <defs><marker id="fa" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#475569"/></marker></defs>
+
+    <rect x="40" y="14" width="720" height="38" rx="6" fill="#fff7ed" stroke="#fdba74"/>
+    <text x="56" y="38" text-anchor="start" fill="#c2410c">① 无提供方 findProvider()==null → reply.onError(E_NO_PROVIDER) 直接返回（register 之前，不经 CAS）</text>
+    <path d="M760,33 L1005,33 L1005,322" fill="none" stroke="#475569" stroke-dasharray="4 3" marker-end="url(#fa)"/>
+
+    <rect x="40" y="74" width="440" height="42" rx="6" fill="#eff6ff" stroke="#bfdbfe"/><rect x="40" y="74" width="6" height="42" fill="#2563eb"/>
+    <text x="58" y="92" text-anchor="start">② [调用线程] provider.send 返回 false</text><text x="58" y="108" text-anchor="start" fill="#64748b">→ complete(corr, E_NOT_CONNECTED)</text>
+
+    <rect x="40" y="124" width="440" height="42" rx="6" fill="#fffbeb" stroke="#fde68a"/><rect x="40" y="124" width="6" height="42" fill="#d97706"/>
+    <text x="58" y="142" text-anchor="start">③ [scheduler] 超时未回</text><text x="58" y="158" text-anchor="start" fill="#64748b">→ complete(corr, E_TIMEOUT)</text>
+
+    <rect x="40" y="174" width="440" height="42" rx="6" fill="#f0fdf4" stroke="#86efac"/><rect x="40" y="174" width="6" height="42" fill="#15803d"/>
+    <text x="58" y="192" text-anchor="start">④ [worker] 收到 RESPONSE（code=OK）</text><text x="58" y="208" text-anchor="start" fill="#64748b">→ complete(corr, OK, payload)</text>
+
+    <rect x="40" y="224" width="440" height="42" rx="6" fill="#f0fdf4" stroke="#86efac"/><rect x="40" y="224" width="6" height="42" fill="#15803d"/>
+    <text x="58" y="242" text-anchor="start">⑤⑥ [worker] RESPONSE 携错误码</text><text x="58" y="258" text-anchor="start" fill="#64748b">对端无handler→E_NO_PROVIDER · 异常→E_INTERNAL</text>
+
+    <rect x="40" y="274" width="440" height="42" rx="6" fill="#f0fdf4" stroke="#86efac"/><rect x="40" y="274" width="6" height="42" fill="#15803d"/>
+    <text x="58" y="292" text-anchor="start">⑦ [worker] binderDied / 断开</text><text x="58" y="308" text-anchor="start" fill="#64748b">→ failPeer(peerId) → complete(E_NOT_CONNECTED)</text>
+
+    <g stroke="#475569" fill="none">
+      <line x1="480" y1="95" x2="598" y2="200" marker-end="url(#fa)"/>
+      <line x1="480" y1="145" x2="598" y2="205" marker-end="url(#fa)"/>
+      <line x1="480" y1="195" x2="598" y2="210" marker-end="url(#fa)"/>
+      <line x1="480" y1="245" x2="598" y2="215" marker-end="url(#fa)"/>
+      <line x1="480" y1="295" x2="598" y2="220" marker-end="url(#fa)"/>
+    </g>
+
+    <rect x="600" y="150" width="380" height="124" rx="10" fill="#eef2ff" stroke="#818cf8"/>
+    <text x="616" y="174" text-anchor="start" font-weight="700" fill="#3730a3">RpcEngine.complete(corr, code, msg)</text>
+    <text x="616" y="196" text-anchor="start" fill="#1e293b">pending.remove(corr)   // null → 已结束，忽略</text>
+    <text x="616" y="216" text-anchor="start" fill="#1e293b">done.compareAndSet(false, true)</text>
+    <text x="616" y="236" text-anchor="start" fill="#dc2626">仅第一个 CAS 成功者继续（防双回调）</text>
+    <text x="616" y="256" text-anchor="start" fill="#1e293b">cancel(timeoutFuture)</text>
+
+    <line x1="790" y1="274" x2="790" y2="320" stroke="#475569" marker-end="url(#fa)"/>
+
+    <rect x="600" y="322" width="430" height="84" rx="10" fill="#f0fdf4" stroke="#86efac"/>
+    <text x="620" y="348" text-anchor="start" font-weight="700" fill="#15803d">reply.onSuccess(payload) / onError(code, msg)</text>
+    <text x="620" y="372" text-anchor="start" fill="#475569">★ 恰好一次 ★ 回调线程 = worker（正常/崩溃）或 scheduler（超时）</text>
+    <text x="620" y="392" text-anchor="start" fill="#475569">更新 UI 必须自行切主线程</text>
+  </svg>
+  </div>
+  <p class="legend">线程色：<span style="color:#2563eb">蓝=调用线程</span> · <span style="color:#d97706">橙=scheduler</span> · <span style="color:#15803d">绿=worker</span>。除①（无提供方，同步直返）外，所有路径都汇入 <code>rpc.complete</code> 的 CAS，保证 reply 恰好触发一次。</p>
 </section>
 
 <!-- 7 Event -->
@@ -443,7 +592,7 @@ deliver(RESPONSE) → onInbound → <b>handleResponse</b> → <b>rpc.complete</b
       <table>
         <tr><th>场景</th><th>机制</th></tr>
         <tr><td>对端崩溃</td><td>DeathRecipient.binderDied → peers.remove + rpc.failPeer(E_NOT_CONNECTED)</td></tr>
-        <tr><td>对端恢复</td><td>BIND_AUTO_CREATE 自动回调 onServiceConnected → 重握手 + 重订阅</td></tr>
+        <tr><td>对端恢复</td><td>BIND_AUTO_CREATE 自动回调 onServiceConnected → 重握手 + 重订阅 → 回调 <code>onRebooted()</code></td></tr>
         <tr><td>开机竞速 bind=false</td><td>scheduleReconnect 退避（1s→×2→30s）</td></tr>
         <tr><td>身份伪造</td><td>getCallingUid + PackageManager 校验，不信 source</td></tr>
         <tr><td>重复投递</td><td>msgId 有界 LRU 去重，幂等</td></tr>
@@ -460,7 +609,8 @@ deliver(RESPONSE) → onInbound → <b>handleResponse</b> → <b>rpc.complete</b
   <p>消费方=发起 RPC / 订阅事件的一端（如导航订阅账号、调多媒体播放）。</p>
   <ol>
     <li><b>依赖</b>：<code>:core:lite</code> + 关心模块的 <code>:contract:X</code>（只用 schema 常量，不依赖 provider 实现）。</li>
-    <li><b>初始化</b>：<code>Bridge.init(this)</code> → 按 <code>assets/bridge_nodes.json</code> 自动 bind 目标 provider；纯客户端无需暴露 Service，靠 <code>attach</code> 把本端 <code>localNode</code> 交给对端，从而能收到 response/event。</li>
+    <li><b>初始化（链式）</b>：<code>Bridge.init(this).register(XxxContract.NODE, cb)</code> —— 注入契约提供的 <code>ServiceNode</code> 坐标即触发「连接 + 模块注册 + 就绪回调」；纯客户端无需暴露 Service，靠 <code>attach</code> 把本端 <code>localNode</code> 交给对端，从而能收到 response/event。</li>
+    <li><b>就绪跟踪</b>：<code>register</code> 传入 <code>ModuleCallback</code> 监听 <code>onConnected</code>（bind 成功）/ <code>onReady</code>（握手完成可调用）/ <code>onRebooted</code>（提供方崩溃恢复）；亦可 <code>Bridge.isReady(module)</code> 同步查询。非就绪时调 <code>request</code> 会打印告警并回 <code>E_NO_PROVIDER</code>。</li>
     <li><b>调用 RPC</b>：<code>Bridge.request(topic, payload, reply, timeout)</code> —— 本地立即返回，结果异步走 <code>reply</code>；超时/无 provider/断连均收口到 <code>onError</code>。</li>
     <li><b>订阅事件</b>：<code>subscribe</code> / <code>subscribes(t..).on</code> / <code>subscribeAll(module).on</code> —— 订阅声明经 HELLO 告知 provider，provider 据此定向推送。</li>
     <li><b>强类型门面（可选）</b>：<code>UserCenterClient.subscribeAccountState(...)</code> 封装 topic 字符串，调用方零记忆负担。</li>
@@ -468,9 +618,17 @@ deliver(RESPONSE) → onInbound → <b>handleResponse</b> → <b>rpc.complete</b
   <pre>public class NaviApp extends Application {
   public void onCreate() {
     super.onCreate();
-    <b>Bridge.init(this);</b>
-    <b>Bridge.subscribes</b>(UserCenterSchema.ACCOUNT_STATE, MediaSchema.STATE)
-          .on((topic, payload) -> push(topic + ": " + payload));   <i>// 一个回调收多类状态</i>
+    <b>Bridge.init(this)</b>                                       <i>// 链式：init 返回 BridgeSetup</i>
+      .<b>register</b>(UserCenterContract.NODE, moduleCb("账号"))     <i>// 注入账号节点坐标 + 就绪回调</i>
+      .<b>register</b>(MediaContract.NODE,      moduleCb("多媒体"))   <i>// 注入多媒体节点坐标 + 就绪回调</i>
+      .<b>subscribes</b>(UserCenterSchema.ACCOUNT_STATE, MediaSchema.STATE)
+      .on((topic, payload) -> push(topic + ": " + payload));   <i>// 一个回调收多类状态</i>
+  }
+  static ModuleCallback moduleCb(String name) {                <i>// onConnected/onReady/onRebooted</i>
+    return new ModuleCallback() {
+      public void onReady()   { push("【"+name+"】就绪可调用"); }
+      public void onRebooted(){ push("【"+name+"】提供方重启恢复"); }
+    };
   }
   static void pullAccount() {
     UserCenterClient.getAccount(new BridgeReply(){              <i>// = Bridge.request 首屏兜底</i>
@@ -535,9 +693,10 @@ public class HostService extends Service {        <i>// 复用宿主已有 Servi
     <tr><td>Header / payload 分离 + JSON</td><td>路由不反序列化 payload；跨版本字段增删容忍度高，配合 schemaVersion 兼容。</td></tr>
     <tr><td>AIDL 冻结</td><td>跨进程 ABI 稳定，演进只在 topic/schema/payload，避免双端版本地狱。</td></tr>
     <tr><td>契约自治</td><td>SDK 只给内核+模板+规范，各模块在自己的 contract 补 topic/错误码/门面，全局只维护前缀+错误码区间分配表。</td></tr>
-    <tr><td>能力声明 = onRequest/subscribe</td><td>唯一信息来源，无冗余 register 空步骤，API 诚实。</td></tr>
+    <tr><td>连接坐标契约注入（DI）</td><td>坐标由 <code>:contract:X</code> 的 <code>ServiceNode</code> 提供、消费方组合根注入，替代静态 JSON 清单：漏依赖 = 编译错，零反射零 IO，core 永不反向依赖 contract。</td></tr>
+    <tr><td>topic 能力 = onRequest/subscribe</td><td>topic 收发能力的唯一来源，无需逐 topic 登记；register 仅声明模块身份与注入连接坐标。</td></tr>
   </table>
-  <div class="okbox"><b>当前状态：</b>骨架编译通过（5 aar + 3 示例 apk），echo（RPC）与 account.state（Event）链路已真机验证。后续建议真机验证整模块订阅的跨进程前缀推送、断连重连。</div>
+  <div class="okbox"><b>当前状态：</b>全量编译通过（5 aar + 3 示例 apk），纯逻辑单测全绿。已在手机 + Root 车机台架双设备验证：契约注入式连接（无 JSON）、media.play（RPC）+ account.state（Event）全链路、以及 <code>kill -9</code> 杀提供方后 ~1s 自愈并回调 <code>onRebooted</code> 的闭环。</div>
 </section>
 
 <footer>Bridge SDK · feat/bridge-sdk · 内部技术材料 · 版权归 Baic 新能源所有</footer>
