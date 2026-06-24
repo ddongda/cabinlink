@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ConcurrentHashMap;
@@ -53,7 +52,6 @@ final class BridgeCore {
     /** 访问控制守卫：基于 Binder.getCallingUid() 校验消息来源，防 source 字段伪造 */
     private final AclGuard acl;
 
-    private final CopyOnWriteArraySet<String> modules = new CopyOnWriteArraySet<>();
     private final ConcurrentHashMap<String, RequestHandler> handlers = new ConcurrentHashMap<>();
     // 统一订阅表：精确 topic 与整模块通配（"module.*"）混存，入站按 matches 分发
     private final CopyOnWriteArrayList<Sub> subs = new CopyOnWriteArrayList<>();
@@ -273,7 +271,6 @@ final class BridgeCore {
 
     void register(String module, int contractVersion, ModuleCallback cb) {
         if (module == null) return;
-        modules.add(module);
         ModuleState st = moduleStates.computeIfAbsent(module, m -> new ModuleState(m, contractVersion));
         if (cb != null) st.callbacks.add(cb);
         Log.i(TAG, P + "注册模块 " + module + " 契约门面版本=" + contractVersion + " callback=" + (cb != null));
