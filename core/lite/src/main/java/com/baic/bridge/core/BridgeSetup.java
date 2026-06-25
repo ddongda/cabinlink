@@ -37,9 +37,15 @@ public final class BridgeSetup {
         return this;
     }
 
-    /** 提供方：注册某个 request topic 的处理器。 */
+    /** 提供方：注册某个 request topic 的处理器（worker 串行执行，适合快 handler）。 */
     public BridgeSetup onRequest(String topic, RequestHandler handler) {
         Bridge.onRequest(topic, handler);
+        return this;
+    }
+
+    /** 提供方：注册某个 request topic 的处理器，handler 在独立线程池并行执行（适合耗时 handler，不阻塞其它请求）。 */
+    public BridgeSetup onRequestAsync(String topic, RequestHandler handler) {
+        Bridge.onRequestAsync(topic, handler);
         return this;
     }
 

@@ -41,8 +41,14 @@ public final class Bridge {
     /** 查询模块是否就绪（提供方已连接且握手完成）。 */
     public static boolean isReady(String module) { return core().isReady(module); }
 
-    /** 提供方：处理某个 request topic。 */
+    /** 提供方：处理某个 request topic（handler 在单线程 worker 串行执行，适合快 handler）。 */
     public static void onRequest(String topic, RequestHandler handler) { core().onRequest(topic, handler); }
+
+    /**
+     * 提供方：处理某个 request topic，handler 在 SDK 独立线程池【并行】执行——适合耗时 handler，
+     * 不占单线程 worker、不会被其它请求队头阻塞。注意 async handler 间并行，访问共享业务状态需自管并发。
+     */
+    public static void onRequestAsync(String topic, RequestHandler handler) { core().onRequestAsync(topic, handler); }
 
     /** 消费方：订阅单个 event topic（回调无需 topic）。 */
     public static void subscribe(String topic, EventListener listener) { core().subscribe(topic, listener); }

@@ -5,6 +5,7 @@ import android.os.Binder;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.RemoteException;
+import android.os.SystemClock;
 import android.util.Log;
 
 import com.baic.bridge.transport.BridgeEnvelope;
@@ -33,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 final class BridgeCore {
     private static final String TAG = "Bridge.Core";
     private static final int DEDUP_CAP = 1024;
+    private static final long SLOW_SYNC_HANDLER_WARN_MS = 200L;   // onRequest 的 sync handler 同步占用 worker 超此值即告警（误用提醒：应改用 onRequestAsync）
 
     /** Application Context，用于 bindService / PackageManager 等系统调用，避免 Activity 泄漏 */
     private final Context ctx;
@@ -52,8 +54,12 @@ final class BridgeCore {
     private final AclGuard acl;
 
     // ───── 注册 / 分发 / 状态 五张本端表（分工：provide 能力 / subscribe 订阅 / 模块就绪 / onConnected 归属 / 去重）─────
-    // provide 能力表：本端能响应的 request topic → 处理器。onRequest 写、handleRequest 读；经 HELLO 的 provide 列表通告对端。
+    // provide 能力表：本端能响应的 request topic → 处理器。onRequest/onRequestAsync 写、handleRequest 读；经 HELLO 的 provide 列表通告对端。
     private final ConcurrentHashMap<String, RequestHandler> handlers = new ConcurrentHashMap<>();
+    // 异步 handler 标记：onRequestAsync 注册的 topic 收录于此。handleRequest 据此把 handler 交给 handlerPool（而非 worker 内联），消除慢 handler 队头阻塞。
+    private final java.util.Set<String> asyncTopics = ConcurrentHashMap.newKeySet();
+    // 异步 handler 线程池：onRequestAsync 的 handler 在此并行执行，不占单线程 worker。懒建（首个 onRequestAsync 时），固定大小 daemon；纯 sync 形态永不创建。
+    private volatile ExecutorService handlerPool;
     // subscribe 订阅表：精确 topic 与整模块通配（"module.*"）混存，入站事件按 Sub.matches 分发；经 HELLO 的 subscribe 列表通告对端。
     private final CopyOnWriteArrayList<Sub> subs = new CopyOnWriteArrayList<>();
     // 模块就绪表：已注册模块 → 就绪状态机 + 回调（onConnected/onReady/onRebooted）。
@@ -208,6 +214,27 @@ final class BridgeCore {
             if (src != null)
                 src.send(newEnv(BridgeEnvelope.TYPE_RESPONSE, env.topic, payload, env.correlationId, code));
         });
+        // onRequestAsync 注册的 topic 交独立线程池并行执行，不占 worker（消除慢 handler 队头阻塞）；
+        // 其余在 worker 线程内联执行（适合快 handler）。
+        if (asyncTopics.contains(env.topic)) {
+            handlerPool().execute(() -> invokeHandler(h, env, resp));
+        } else {
+            // sync handler 在 worker 线程内联：计时，超阈值告警（误用 onRequest 处理耗时任务，会队头阻塞后续入站）。
+            // 只测 handle() 同步占用 worker 的时长——异步回包的 handler 此处秒返回，不会误报。
+            long t0 = SystemClock.uptimeMillis();
+            invokeHandler(h, env, resp);
+            long cost = SystemClock.uptimeMillis() - t0;
+            if (cost >= SLOW_SYNC_HANDLER_WARN_MS) {
+                Log.w(TAG, P + "onRequest handler 同步耗时 " + cost + "ms 占用单线程 worker（阈值 "
+                        + SLOW_SYNC_HANDLER_WARN_MS + "ms），topic=" + env.topic
+                        + "，会队头阻塞后续请求/事件；建议改用 Bridge.onRequestAsync(\"" + env.topic
+                        + "\", ...) 或在 handler 内自行异步回包");
+            }
+        }
+    }
+
+    /** 执行 handler 并隔离异常（异常 → 回 E_INTERNAL）。worker 内联（sync）与线程池（async）两条路共用。 */
+    private void invokeHandler(RequestHandler h, BridgeEnvelope env, BridgeResponder resp) {
         try {
             h.handle(new BridgeRequest(env.payload), resp);
         } catch (Exception e) {
@@ -360,10 +387,42 @@ final class BridgeCore {
         }
     }
 
+    /** 提供方：注册某 request topic 的处理器。handler 在单线程 worker【串行】执行，适合快 handler；耗时请改用 onRequestAsync。 */
     void onRequest(String topic, RequestHandler handler) {
         handlers.put(topic, handler);
         Log.i(TAG, P + "注册请求处理器 topic=" + topic);
         broadcastHello();   // 能力变化，重新通告，订阅/请求方据此更新对端能力表
+    }
+
+    /**
+     * 提供方：注册一个在【独立线程池并行执行】的 request 处理器。
+     * 与 onRequest 的唯一区别：handler 不在单线程 worker 内联跑，而是交给 handlerPool——
+     * 慢 handler（查库/IO/算路）不占 worker，不会队头阻塞其它请求。
+     * 注意：async handler 之间并行，访问共享业务状态需自管并发；handler 内可直接同步 resp.ok。
+     */
+    void onRequestAsync(String topic, RequestHandler handler) {
+        handlers.put(topic, handler);
+        asyncTopics.add(topic);
+        handlerPool();   // 懒建线程池，注册即就绪
+        Log.i(TAG, P + "注册异步请求处理器 topic=" + topic + "（独立线程池执行）");
+        broadcastHello();   // 能力变化，重新通告（async 对对端透明，一样进 provide 列表）
+    }
+
+    /** 异步 handler 线程池：double-checked 懒建，固定大小（≥2，默认 CPU 核数），daemon 线程。 */
+    private ExecutorService handlerPool() {
+        ExecutorService p = handlerPool;
+        if (p == null) {
+            synchronized (this) {
+                p = handlerPool;
+                if (p == null) {
+                    int n = Math.max(2, Runtime.getRuntime().availableProcessors());
+                    p = Executors.newFixedThreadPool(n, daemon("bridge-async-handler"));
+                    handlerPool = p;
+                    Log.i(TAG, P + "异步 handler 线程池已建，线程数=" + n);
+                }
+            }
+        }
+        return p;
     }
 
     /**
