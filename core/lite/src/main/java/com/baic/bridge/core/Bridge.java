@@ -46,7 +46,9 @@ public final class Bridge {
 
     /**
      * 提供方：处理某个 request topic，handler 在 SDK 独立线程池【并行】执行——适合耗时 handler，
-     * 不占单线程 worker、不会被其它请求队头阻塞。注意 async handler 间并行，访问共享业务状态需自管并发。
+     * 不占单线程 worker、不会被其它请求队头阻塞。
+     * <p>注意：async handler 间并行，访问共享业务状态需自管并发；handler 内勿调 {@code Binder.getCallingUid()}
+     * （运行在线程池线程，SDK 已完成入站 ACL 校验）；async 无内置超时，过载时回 {@code E_BUSY}。
      */
     public static void onRequestAsync(String topic, RequestHandler handler) { core().onRequestAsync(topic, handler); }
 

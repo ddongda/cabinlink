@@ -9,6 +9,7 @@ public final class BridgeErrors {
     public static final int E_VERSION      = 4;  // schemaVersion 不兼容
     public static final int E_ACL          = 5;  // 鉴权拒绝
     public static final int E_INTERNAL     = 6;  // 内部错误
+    public static final int E_BUSY         = 7;  // 提供方繁忙/过载（如异步 handler 池队列已满，请退避重试）
 
     private BridgeErrors() {}
 }

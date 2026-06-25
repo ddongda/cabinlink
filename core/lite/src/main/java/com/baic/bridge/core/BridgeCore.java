@@ -22,8 +22,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -35,6 +38,7 @@ final class BridgeCore {
     private static final String TAG = "Bridge.Core";
     private static final int DEDUP_CAP = 1024;
     private static final long SLOW_SYNC_HANDLER_WARN_MS = 200L;   // onRequest 的 sync handler 同步占用 worker 超此值即告警（误用提醒：应改用 onRequestAsync）
+    private static final int ASYNC_HANDLER_QUEUE_CAP = 256;       // 异步 handler 池有界队列容量：满则拒绝（回 E_BUSY），防慢 handler 任务无界堆积
 
     /** Application Context，用于 bindService / PackageManager 等系统调用，避免 Activity 泄漏 */
     private final Context ctx;
@@ -217,7 +221,13 @@ final class BridgeCore {
         // onRequestAsync 注册的 topic 交独立线程池并行执行，不占 worker（消除慢 handler 队头阻塞）；
         // 其余在 worker 线程内联执行（适合快 handler）。
         if (asyncTopics.contains(env.topic)) {
-            handlerPool().execute(() -> invokeHandler(h, env, resp));
+            try {
+                handlerPool().execute(() -> invokeHandler(h, env, resp));
+            } catch (RejectedExecutionException rej) {
+                // 异步 handler 池过载（队列满）：快速失败回 E_BUSY，绝不堆积、也不回退 worker 执行（否则慢 handler 又拽回 worker 队头阻塞）
+                Log.w(TAG, P + "异步 handler 池过载，拒绝 topic=" + env.topic + "，回 E_BUSY（提供方应降耗时或扩容）");
+                resp.fail(BridgeErrors.E_BUSY, "提供方繁忙，异步处理队列已满");
+            }
         } else {
             // sync handler 在 worker 线程内联：计时，超阈值告警（误用 onRequest 处理耗时任务，会队头阻塞后续入站）。
             // 只测 handle() 同步占用 worker 的时长——异步回包的 handler 此处秒返回，不会误报。
@@ -398,7 +408,13 @@ final class BridgeCore {
      * 提供方：注册一个在【独立线程池并行执行】的 request 处理器。
      * 与 onRequest 的唯一区别：handler 不在单线程 worker 内联跑，而是交给 handlerPool——
      * 慢 handler（查库/IO/算路）不占 worker，不会队头阻塞其它请求。
-     * 注意：async handler 之间并行，访问共享业务状态需自管并发；handler 内可直接同步 resp.ok。
+     * <p>注意事项：
+     * <ul>
+     *   <li>async handler 之间并行，访问共享业务状态需自管并发；handler 内可直接同步 resp.ok（亦可跨线程稍后回）。</li>
+     *   <li><b>勿在 handler 内调用 {@code Binder.getCallingUid()}</b>——handler 运行在线程池线程（非 Binder 事务线程），
+     *       取不到真实调用方；SDK 已在入站时用内核 uid 完成 ACL 校验，handler 收到的是已鉴权请求。</li>
+     *   <li>async handler <b>无内置超时/监控</b>，provider 须自律控制耗时；线程池队列满（过载）时新请求快速失败回 {@code E_BUSY}。</li>
+     * </ul>
      */
     void onRequestAsync(String topic, RequestHandler handler) {
         handlers.put(topic, handler);
@@ -408,7 +424,10 @@ final class BridgeCore {
         broadcastHello();   // 能力变化，重新通告（async 对对端透明，一样进 provide 列表）
     }
 
-    /** 异步 handler 线程池：double-checked 懒建，固定大小（≥2，默认 CPU 核数），daemon 线程。 */
+    /**
+     * 异步 handler 线程池：double-checked 懒建。固定 n 线程（≥2，默认 CPU 核数）+ 有界队列（{@link #ASYNC_HANDLER_QUEUE_CAP}）。
+     * 队列满时默认 AbortPolicy 抛 {@link RejectedExecutionException}，由调用方快速失败回 E_BUSY——绝不无界堆积、也不回退 worker。
+     */
     private ExecutorService handlerPool() {
         ExecutorService p = handlerPool;
         if (p == null) {
@@ -416,9 +435,10 @@ final class BridgeCore {
                 p = handlerPool;
                 if (p == null) {
                     int n = Math.max(2, Runtime.getRuntime().availableProcessors());
-                    p = Executors.newFixedThreadPool(n, daemon("bridge-async-handler"));
+                    p = new ThreadPoolExecutor(n, n, 0L, TimeUnit.MILLISECONDS,
+                            new LinkedBlockingQueue<>(ASYNC_HANDLER_QUEUE_CAP), daemon("bridge-async-handler"));
                     handlerPool = p;
-                    Log.i(TAG, P + "异步 handler 线程池已建，线程数=" + n);
+                    Log.i(TAG, P + "异步 handler 线程池已建，线程数=" + n + " 队列上限=" + ASYNC_HANDLER_QUEUE_CAP);
                 }
             }
         }
