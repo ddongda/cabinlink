@@ -274,11 +274,12 @@
   <table>
     <tr><th>线程</th><th>来源</th><th>职责</th><th>约束</th></tr>
     <tr><td><b>Binder 线程</b></td><td>系统线程池</td><td><code>deliver()</code> 到达点，取 <code>getCallingUid()</code></td><td>不做业务，立即 post 给 worker</td></tr>
-    <tr><td><b>worker（单线程）</b></td><td>SDK daemon</td><td><code>onInbound</code> + 去重 + 鉴权 + handler 执行 + 回调</td><td>串行，杜绝并发乱序</td></tr>
+    <tr><td><b>worker（单线程）</b></td><td>SDK daemon</td><td><code>onInbound</code> + 去重 + 鉴权 + <code>onRequest</code> handler 内联 + 回调</td><td>串行，杜绝并发乱序；慢 handler 会队头阻塞，应改用 async 池</td></tr>
+    <tr><td><b>async-handler 池</b></td><td>SDK daemon（懒建·固定大小）</td><td><code>onRequestAsync</code> 注册的 handler 在此并行执行</td><td>不占 worker；handler 间并发，业务自管</td></tr>
     <tr><td><b>scheduler（单线程）</b></td><td>SDK daemon</td><td>RPC 超时计时、退避重连</td><td>不执行业务逻辑</td></tr>
     <tr><td><b>主线程</b></td><td>App</td><td>调用 API / 更新 UI</td><td>回调在 worker，UI 自行切主线程；<code>requestSync</code> 禁主线程</td></tr>
   </table>
-  <div class="warnbox"><b>不阻塞原则：</b><code>deliver</code> 全程 oneway，对端再慢也不会占用本端 Binder 线程；同步糖 <code>requestSync</code> 在主线程调用直接抛 <code>IllegalStateException</code> 防 ANR。</div>
+  <div class="warnbox"><b>不阻塞原则：</b><code>deliver</code> 全程 oneway，对端再慢也不会占用本端 Binder 线程；同步糖 <code>requestSync</code> 在主线程调用直接抛 <code>IllegalStateException</code> 防 ANR。耗时 handler 用 <code>onRequestAsync</code> 走独立线程池，避免占用单线程 worker 队头阻塞；误用 <code>onRequest</code> 同步耗时 ≥200ms 会打告警。</div>
 </section>
 
 <!-- 5 启动建连握手 -->
@@ -649,8 +650,8 @@ deliver(RESPONSE) → onInbound → <b>handleResponse</b> → <b>rpc.complete</b
         <li><span class="tag t-k">外挂</span> 依赖 <code>:core:lite</code>，存量 App 在<b>已有 Service</b> 的 <code>onBind</code> 里按 action 返回 <code>Bridge.nodeBinder()</code>——不新增 Service 类、不增进程。</li>
       </ul>
     </li>
-    <li><b>注册能力</b>：<code>Bridge.onRequest(topic, handler)</code> 声明可响应的 request topic → 经 HELLO 通告对端 provide 列表。</li>
-    <li><b>响应请求</b>：收到 REQUEST → <code>handler.handle(BridgeRequest, BridgeResponder)</code> → <code>resp.ok(json)</code> / <code>resp.fail(code, msg)</code>（一次性 CAS，防重复应答乱序）。</li>
+    <li><b>注册能力</b>：<code>Bridge.onRequest(topic, handler)</code>（handler 在 worker 串行内联，适合快 handler）或 <code>Bridge.onRequestAsync(topic, handler)</code>（耗时 handler 在独立线程池并行，不占 worker、不队头阻塞）声明可响应的 request topic → 经 HELLO 通告对端 provide 列表（async 对对端透明）。</li>
+    <li><b>响应请求</b>：收到 REQUEST → <code>handler.handle(BridgeRequest, BridgeResponder)</code> → <code>resp.ok(json)</code> / <code>resp.fail(code, msg)</code>（一次性 CAS，防重复应答乱序）。耗时处理务必用 <code>onRequestAsync</code>；误用 <code>onRequest</code> 同步占 worker ≥200ms，SDK 打告警引导改用 async。</li>
     <li><b>发布事件</b>：<code>Bridge.publish(topic, payload)</code> → 按对端订阅声明（含 <code>module.*</code> 前缀）定向推送。</li>
     <li><b>身份安全</b>：一律 <code>getCallingUid()</code> 校验真实包名，绝不信 <code>Envelope.source</code>。</li>
   </ol>
@@ -695,8 +696,9 @@ public class HostService extends Service {        <i>// 复用宿主已有 Servi
     <tr><td>契约自治</td><td>SDK 只给内核+模板+规范，各模块在自己的 contract 补 topic/错误码/门面，全局只维护前缀+错误码区间分配表。</td></tr>
     <tr><td>连接坐标契约注入（DI）</td><td>坐标由 <code>:contract:X</code> 的 <code>ServiceNode</code> 提供、消费方组合根注入，替代静态 JSON 清单：漏依赖 = 编译错，零反射零 IO，core 永不反向依赖 contract。</td></tr>
     <tr><td>topic 能力 = onRequest/subscribe</td><td>topic 收发能力的唯一来源，无需逐 topic 登记；register 仅声明模块身份与注入连接坐标。</td></tr>
+    <tr><td>onRequest 内联 + onRequestAsync 池</td><td>快 handler 在单线程 worker 串行（无锁、简单）；耗时 handler 走独立线程池避免队头阻塞——同一 API 风格两条路，误用同步耗时有运行时告警兜底。</td></tr>
   </table>
-  <div class="okbox"><b>当前状态：</b>全量编译通过（5 aar + 3 示例 apk），纯逻辑单测全绿。已在手机 + Root 车机台架双设备验证：契约注入式连接（无 JSON）、media.play（RPC）+ account.state（Event）全链路、以及 <code>kill -9</code> 杀提供方后 ~1s 自愈并回调 <code>onRebooted</code> 的闭环。</div>
+  <div class="okbox"><b>当前状态：</b>全量编译通过（5 aar + 3 示例 apk），纯逻辑单测全绿。已在手机 + Root 车机台架双设备验证：契约注入式连接（无 JSON）、media.play（RPC）+ account.state（Event）全链路、<code>kill -9</code> 杀提供方后 ~1s 自愈并回调 <code>onRebooted</code> 的闭环；以及 <code>onRequestAsync</code> 慢 handler（2s）不阻塞同期快请求（+6ms 返回）、<code>onRequest</code> 同步耗时 302ms 触发预警告警。</div>
 </section>
 
 <footer>Bridge SDK · feat/bridge-sdk · 内部技术材料 · 版权归 Baic 新能源所有</footer>
