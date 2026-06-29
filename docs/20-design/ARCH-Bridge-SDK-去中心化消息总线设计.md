@@ -372,7 +372,7 @@ contract/<module>/   (:contract:<module> → bridge-contract-<module>)
 // <Module>Error.java 示例（media 区间 1000–1999）
 public final class MediaError {
     public static final int E_DEVICE = 1001; // 播放器异常
-    public static final int E_BUSY   = 1002; // 播放器忙
+    public static final int E_PLAYER_BUSY = 1002; // 播放器忙
     public static final int E_SOURCE = 1003; // 片源不可用
 }
 ```

@@ -82,7 +82,7 @@ Bridge.request("media.play", "{\"trackId\":\"123\"}", new BridgeReply() {
 // 提供方
 Bridge.onRequest("media.play", (req, resp) -> {
     if (player.play(req.get("trackId"))) resp.ok("{\"playState\":1}");
-    else resp.fail(MediaError.E_BUSY, "播放器忙");
+    else resp.fail(MediaError.E_PLAYER_BUSY, "播放器忙");
 });
 ```
 
