@@ -5,5 +5,6 @@ android {
     namespace = "com.baic.bridge.contract.usercenter"; compileSdk = 34
     defaultConfig { minSdk = 28 }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
+    publishing { singleVariant("release") { withSourcesJar() } }
 }
 dependencies { api(project(":core:lite")) }
