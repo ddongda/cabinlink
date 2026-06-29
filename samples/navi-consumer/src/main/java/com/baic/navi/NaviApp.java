@@ -3,6 +3,8 @@ package com.baic.navi;
 import android.app.Application;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
+import android.util.Log;
 
 import com.baic.bridge.contract.media.MediaClient;
 import com.baic.bridge.contract.media.MediaContract;
@@ -13,6 +15,14 @@ import com.baic.bridge.contract.usercenter.UserCenterSchema;
 import com.baic.bridge.core.Bridge;
 import com.baic.bridge.core.BridgeReply;
 import com.baic.bridge.core.ModuleCallback;
+
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 导航 App：lite 纯客户端。
@@ -65,6 +75,60 @@ public class NaviApp extends Application {
             @Override public void onSuccess(String p) { push("播放成功: " + p); }
             @Override public void onError(int code, String msg) { push("播放失败 code=" + code + " " + msg); }
         }, 3000);
+    }
+
+    private static final String STRESS = "NaviStress";
+
+    /**
+     * 【压测工具·保留】并发高频 request media.play，统计吞吐/延迟/错误，结果打到 logcat（tag=NaviStress）。
+     * 可重复跑做回归基线：{@code adb logcat -s NaviStress}。默认 8 线程 × 200 = 1600 个并发请求。
+     */
+    public static void runStressTest() {
+        final int threads = 8, perThread = 200, total = threads * perThread;
+        final AtomicInteger ok = new AtomicInteger();
+        final AtomicInteger err = new AtomicInteger();
+        final ConcurrentHashMap<Integer, AtomicInteger> errCodes = new ConcurrentHashMap<>();
+        final AtomicLong latSum = new AtomicLong();
+        final AtomicLong latMax = new AtomicLong();
+        final CountDownLatch done = new CountDownLatch(total);
+        final ExecutorService pool = Executors.newFixedThreadPool(threads);
+        final long t0 = SystemClock.uptimeMillis();
+        push("[压测] 开始 " + threads + "×" + perThread + "=" + total + " 并发请求，结果见 logcat -s NaviStress");
+        Log.i(STRESS, "压测开始 线程=" + threads + " 每线程=" + perThread + " 总请求=" + total);
+        for (int t = 0; t < threads; t++) {
+            pool.execute(() -> {
+                for (int j = 0; j < perThread; j++) {
+                    final long s = SystemClock.uptimeMillis();
+                    Bridge.request(MediaSchema.PLAY, "{\"trackId\":\"1\"}", new BridgeReply() {
+                        @Override public void onSuccess(String p) { record(s, latSum, latMax); ok.incrementAndGet(); done.countDown(); }
+                        @Override public void onError(int code, String m) {
+                            record(s, latSum, latMax); err.incrementAndGet();
+                            errCodes.computeIfAbsent(code, k -> new AtomicInteger()).incrementAndGet();
+                            done.countDown();
+                        }
+                    }, 5000);
+                }
+            });
+        }
+        new Thread(() -> {
+            boolean fin;
+            try { fin = done.await(120, TimeUnit.SECONDS); } catch (InterruptedException e) { fin = false; }
+            long dur = Math.max(1, SystemClock.uptimeMillis() - t0);
+            long n = total - done.getCount();
+            String report = "压测结束 完成=" + n + "/" + total + (fin ? "" : "（超时未全完成）")
+                    + " 成功=" + ok.get() + " 失败=" + err.get() + " 错误码=" + errCodes
+                    + " 耗时=" + dur + "ms QPS=" + (n * 1000 / dur)
+                    + " 平均延迟=" + (latSum.get() / Math.max(1, n)) + "ms 最大延迟=" + latMax.get() + "ms";
+            Log.i(STRESS, report);
+            push("[压测] " + report);
+            pool.shutdownNow();
+        }, "navi-stress-reporter").start();
+    }
+
+    private static void record(long startMs, AtomicLong sum, AtomicLong max) {
+        long d = SystemClock.uptimeMillis() - startMs;
+        sum.addAndGet(d);
+        max.updateAndGet(x -> Math.max(x, d));
     }
 
     private static void push(final String text) {

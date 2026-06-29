@@ -34,6 +34,11 @@ public class MainActivity extends Activity {
         play.setOnClickListener(v -> NaviApp.playMedia());
         root.addView(play);
 
+        Button stress = new Button(this);
+        stress.setText("压测 (8×200 并发 request)");
+        stress.setOnClickListener(v -> NaviApp.runStressTest());
+        root.addView(stress);
+
         NaviApp.ui = text -> runOnUiThread(() -> tv.setText(text));
         setContentView(root);
     }
