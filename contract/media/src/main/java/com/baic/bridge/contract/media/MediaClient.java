@@ -24,6 +24,14 @@ public final class MediaClient {
         Bridge.request(MediaSchema.NEXT, "{}", reply, timeoutMs);
     }
 
+    /** 设置音量（0–100）。 */
+    public static void setVolume(int volume, BridgeReply reply, long timeoutMs) {
+        String payload;
+        try { payload = new JSONObject().put(MediaSchema.K_VOLUME, volume).toString(); }
+        catch (Exception e) { payload = "{}"; }
+        Bridge.request(MediaSchema.SET_VOLUME, payload, reply, timeoutMs);
+    }
+
     /** 订阅播放状态变化。 */
     public static void subscribeState(EventListener listener) {
         Bridge.subscribe(MediaSchema.STATE, listener);
