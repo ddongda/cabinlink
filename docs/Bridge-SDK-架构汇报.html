@@ -222,7 +222,7 @@
       </table>
     </div>
   </div>
-  <div class="note"><b>topic 能力声明的唯一来源</b>是 <code>onRequest</code>(provide) 与 <code>subscribe</code>(subscribe)，经 HELLO 通告对端——无需逐 topic 登记。<code>register</code> 只做两件事：声明<b>模块身份</b>（<code>register(module)</code>）与<b>注入连接坐标</b>（<code>register(ServiceNode)</code>），不重复声明 topic。</div>
+  <div class="note"><b>topic 能力声明的唯一来源</b>是 <code>onRequest</code>(provide) 与 <code>subscribe</code>(subscribe)，经 HELLO 通告对端——无需逐 topic 登记，提供方也无需单独声明模块。<code>register(ServiceNode)</code> 只做一件事：<b>注入连接坐标</b>（消费方连接目标），不声明 topic 能力。</div>
 
   <h3>对端能力表（PeerConnection）与 HELLO 刷新机制</h3>
   <p>每个 <code>PeerConnection</code> = 一个对端 + 它自报的两张能力清单。能力一变就向所有 peer 重广播 HELLO，对端 <code>handleHello</code> 用 <b>clear+add 全量替换</b>（幂等，天然支持重连补发）。</p>
@@ -695,7 +695,7 @@ public class HostService extends Service {        <i>// 复用宿主已有 Servi
     <tr><td>AIDL 冻结</td><td>跨进程 ABI 稳定，演进只在 topic/schema/payload，避免双端版本地狱。</td></tr>
     <tr><td>契约自治</td><td>SDK 只给内核+模板+规范，各模块在自己的 contract 补 topic/错误码/门面，全局只维护前缀+错误码区间分配表。</td></tr>
     <tr><td>连接坐标契约注入（DI）</td><td>坐标由 <code>:contract:X</code> 的 <code>ServiceNode</code> 提供、消费方组合根注入，替代静态 JSON 清单：漏依赖 = 编译错，零反射零 IO，core 永不反向依赖 contract。</td></tr>
-    <tr><td>topic 能力 = onRequest/subscribe</td><td>topic 收发能力的唯一来源，无需逐 topic 登记；register 仅声明模块身份与注入连接坐标。</td></tr>
+    <tr><td>topic 能力 = onRequest/subscribe</td><td>topic 收发能力的唯一来源，无需逐 topic 登记；<code>register(ServiceNode)</code> 仅用于消费方注入连接坐标。</td></tr>
     <tr><td>onRequest 内联 + onRequestAsync 池</td><td>快 handler 在单线程 worker 串行（无锁、简单）；耗时 handler 走独立线程池避免队头阻塞——同一 API 风格两条路，误用同步耗时有运行时告警兜底。</td></tr>
   </table>
   <div class="okbox"><b>当前状态：</b>全量编译通过（5 aar + 3 示例 apk），纯逻辑单测全绿。已在手机 + Root 车机台架双设备验证：契约注入式连接（无 JSON）、media.play（RPC）+ account.state（Event）全链路、<code>kill -9</code> 杀提供方后 ~1s 自愈并回调 <code>onRebooted</code> 的闭环；以及 <code>onRequestAsync</code> 慢 handler（2s）不阻塞同期快请求（+6ms 返回）、<code>onRequest</code> 同步耗时 302ms 触发预警告警。</div>

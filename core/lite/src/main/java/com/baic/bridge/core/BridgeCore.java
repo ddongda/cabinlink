@@ -297,11 +297,6 @@ final class BridgeCore {
 
     // ───────────────────────── 对外 API（经统一门面 Bridge）─────────────────────────
 
-    /** 提供方：声明自身模块（不连接外部，契约版本未知=0）。 */
-    void register(String module) {
-        registerModule(module, 0, null);
-    }
-
     /** 消费方：注入依赖节点 —— 连接 + 模块注册 +（可选）就绪回调。 */
     void register(ServiceNode node, ModuleCallback cb) {
         if (node == null) return;

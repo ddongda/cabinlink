@@ -399,9 +399,8 @@ implementation("com.baic.bridge:bridge-contract-media")
 public class MediaApp extends Application {
   public void onCreate() {
     super.onCreate();
-    Bridge.init(this);                    // 读清单、建连、起重连
-    Bridge.register(MediaSchema.MODULE);  // 声明提供 media.* 能力
-    Bridge.onRequest(MediaSchema.PLAY, (req, resp) -> { /* ... */ });
+    Bridge.init(this);                    // 建连、起重连
+    Bridge.onRequest(MediaSchema.PLAY, (req, resp) -> { /* ... */ });  // 注册能力即声明 media.* 模块
   }
 }
 ```
@@ -438,7 +437,6 @@ public class UserCenterApp extends Application {
   public void onCreate() {
     super.onCreate();
     Bridge.init(this);                              // 唯一入口，把 Bridge 内核挂到宿主进程
-    Bridge.register(UserCenterSchema.MODULE);
     Bridge.onRequest(UserCenterSchema.GET_ACCOUNT, (req, resp) -> resp.ok(currentAccountJson()));
     // 账号变化时：Bridge.publish(UserCenterSchema.ACCOUNT_STATE, accountJson());
   }
@@ -467,7 +465,7 @@ public class NaviApp extends Application {
   public void onCreate() {
     super.onCreate();
     Bridge.init(this);                              // 只起客户端：主动 bind 目标 + attach 回调（不暴露 Service）
-    Bridge.register(UserCenterSchema.MODULE);
+    Bridge.register(UserCenterContract.NODE, null); // 注入账号节点坐标：建连（如需就绪回调传 ModuleCallback）
     Bridge.subscribe(UserCenterSchema.ACCOUNT_STATE, p -> updateAccountUi(p)); // 订阅账号状态
     Bridge.request(UserCenterSchema.GET_ACCOUNT, "{}", reply, 3000);           // 首屏主动拉一次
   }
@@ -506,7 +504,7 @@ com.baic.usercenter               com.baic.media          com.baic.navi
 ```
 
 - **用户中心**（lite·挂已有 service，§10.2 用法A）：账号登录/登出/切换/资料变更时 `publish("usercenter.account.state")`；响应 `usercenter.getAccount` 供消费方首屏主动拉取。
-- **多媒体 / 导航**：`register("usercenter")` + `subscribe("usercenter.account.state")`，登录态变化驱动各自业务；只依赖 `bridge-contract-usercenter` 的 schema 常量，**不依赖用户中心实现**（低耦合）。
+- **多媒体 / 导航**：`register(UserCenterContract.NODE)` + `subscribe("usercenter.account.state")`，登录态变化驱动各自业务；只依赖 `bridge-contract-usercenter` 的 schema 常量，**不依赖用户中心实现**（低耦合）。
 - 首屏时序问题（消费方启动时账号事件已发过）由 `usercenter.getAccount` 主动拉取兜底，避免漏掉最后状态。
 
 ---

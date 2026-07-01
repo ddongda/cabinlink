@@ -19,12 +19,6 @@ public final class BridgeSetup {
 
     private BridgeSetup() {}
 
-    /** 提供方：声明自身模块（不连接外部）。 */
-    public BridgeSetup register(String module) {
-        Bridge.register(module);
-        return this;
-    }
-
     /** 消费方：注入依赖节点（XxxContract.NODE）—— 连接 + 模块注册。 */
     public BridgeSetup register(ServiceNode node) {
         Bridge.register(node);

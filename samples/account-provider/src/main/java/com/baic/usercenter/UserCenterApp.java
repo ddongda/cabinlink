@@ -20,8 +20,7 @@ public class UserCenterApp extends Application {
     public void onCreate() {
         super.onCreate();
         Bridge.init(this);
-        Bridge.register(UserCenterSchema.MODULE);
-        // 提供方：响应首屏主动拉取
+        // 提供方：注册能力即声明模块（onRequest 写入 handlers，经 HELLO 通告对端）；无需再单独声明模块
         Bridge.onRequest(UserCenterSchema.GET_ACCOUNT, (req, resp) -> resp.ok(currentAccount));
     }
 

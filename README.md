@@ -150,7 +150,7 @@ ModuleCallback cb = new ModuleCallback() {
 boolean up = Bridge.isReady(MediaSchema.MODULE);  // 同步查询是否就绪
 ```
 
-> 非就绪状态调用 `request` 会打印告警并回 `E_NO_PROVIDER`；提供方（被动等连）用 `Bridge.register(MODULE)` 字符串重载声明自身模块，不主动连接。
+> 非就绪状态调用 `request` 会打印告警并回 `E_NO_PROVIDER`；提供方（被动等连）只需 `Bridge.onRequest(...)` 注册能力（经 HELLO 通告对端），无需单独声明模块、不主动连接。
 
 ---
 
@@ -175,8 +175,7 @@ implementation(project(":contract:media"))
 ```
 ```java
 Bridge.init(this);
-Bridge.register(MediaSchema.MODULE);        // 声明自身模块
-Bridge.onRequest(MediaSchema.PLAY, (req, resp) -> { ... });
+Bridge.onRequest(MediaSchema.PLAY, (req, resp) -> { ... });  // 注册能力即声明模块
 ```
 
 **已有 service 的 App（lite·挂载）：** 见 [设计文档 §10.2](docs/20-design/ARCH-Bridge-SDK-去中心化消息总线设计.md)。同样 `Bridge.init(this)`，再在宿主 `Service.onBind` 按 action 返回 `Bridge.nodeBinder()`——不新增 Service 类、不增进程。

@@ -29,9 +29,6 @@ public final class Bridge {
         return BridgeSetup.INSTANCE;
     }
 
-    /** 提供方：声明自身模块（不连接外部）。 */
-    public static void register(String module) { core().register(module); }
-
     /** 消费方：注入依赖节点（来自 :contract:X 的 XxxContract.NODE）—— 连接 + 模块注册。 */
     public static void register(ServiceNode node) { core().register(node, null); }
 
