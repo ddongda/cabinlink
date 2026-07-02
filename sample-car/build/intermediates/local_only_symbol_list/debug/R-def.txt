@@ -1,7 +1,0 @@
-R_DEF: Internal format may change without notice
-local
-id btn_alert
-id btn_can_temp
-id tv_status
-layout activity_car
-string app_name

@@ -1,6 +1,0 @@
-int id btn_24 0x7f010000
-int id btn_ac_on 0x7f010001
-int id btn_read 0x7f010002
-int id tv_log 0x7f010003
-int layout activity_voice 0x7f020000
-int string app_name 0x7f030000

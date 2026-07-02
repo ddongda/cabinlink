@@ -1,42 +1,54 @@
-# CabinLink 工程宪法（Claude Code 长期记忆）
+# Bridge SDK 工程说明（Claude Code 长期记忆）
 
-你是本工程的高级 Android 系统工程师。CabinLink 是北汽座舱服务总线中间件
-（车控/电话/导航/多媒体/语音 模块间通信），架构定稿见
-`../CabinLink-座舱服务总线架构设计-V2.md`。
+你是本工程的高级 Android 系统工程师。**Bridge SDK** 是北汽座舱**去中心化**跨进程通信 SDK
+（导航/电话/多媒体/用户中心/车控 等模块间通信）。无中心进程、无独立 APK，各业务 App 以 aar 接入，
+连接目标由各 `:contract:X` 提供（`ServiceNode`，注入式 DI，无静态 JSON 清单），点对点 bind 建立长连接；
+以 Topic + JSON 信封 + Schema + 版本控制的 RPC/Event 模型收发消息。
 
-## 每次会话的固定动作（按序）
-
-1. 先读 `docs/90-knowledge/INDEX.md`（知识图谱入口），按需跳转其指向的图谱文件；
-2. 确认本次任务属于 `docs/00-workflow/CLAUDE-CODE-工作流.md` 的哪个阶段，**只做该阶段的事**；
-3. 任务完成后执行收尾三件套：
-   - 验收：跑该阶段 Prompt 里写明的验收命令/检查项，贴出结果；
-   - 沉淀：按需更新 `docs/90-knowledge/` 下对应图谱文件；
-   - 纪要：在 `docs/90-knowledge/session-log/` 新增一份会话纪要（用模板）。
+> 设计定稿见 `docs/20-design/ARCH-Bridge-SDK-去中心化消息总线设计.md`，工程概览见根 `README.md`。
+> （本分支 `feat/bridge-sdk` 已废弃旧 CabinLink 中心化中间件方案，相关模块与文档已清理。）
 
 ## 铁律（违反即返工）
 
-- **一次会话一个目标**：不超出当前阶段 Prompt 的边界，发现新问题记入纪要的「遗留项」，不顺手扩散。
 - **先读后写**：改任何文件前先 Read；引用结论必须给出 `文件:行号`。
-- **传输 ABI 冻结**：`link-pipe` 模块的 AIDL 一旦评审通过，永不修改方法签名；演进只发生在 opcode 表与 Bundle schema。
-- **依赖方向**：业务 App → link-runtime + contract-X；contract 之间互不依赖；link-kernel 不依赖任何 contract。
-- **控制面不碰业务数据**：link-kernel 只做注册/发现/健康/ACL。
+- **传输 ABI 冻结**：`:transport` 的 AIDL（`IBridgeNode` / `BridgeEnvelope`）一旦评审通过，永不修改方法签名；
+  演进只发生在 Envelope 的 `type/topic/schemaVersion/payload`。
+- **依赖方向（单向）**：业务 App → `:contract:X` → `:core:full`/`:core:lite` → `:transport`；
+  `:contract:X` 之间互不依赖；`:core` 不感知任何业务 topic（不依赖 contract）。
+- **契约自治**：SDK 只提供内核（transport + core）+ 模板 + 规范；topic/特殊错误码/门面由各模块在自己的
+  `:contract:<module>` 自助补充。全局只维护一张「模块前缀 + 错误码区间」分配表防冲突。
+- **身份只信内核值**：接收侧一律 `Binder.getCallingUid()` 校验，绝不信 `Envelope.source` 等参数。
+- **不扩散**：一次会话聚焦一个目标，发现新问题先记录，不顺手改无关代码。
 - 中文回复；代码注释中文；提交信息中文。
 
-## 文档地图
+## 模块地图
 
-| 目录 | 内容 | 谁写 |
+| Gradle 路径 | artifactId | 职责 |
 |---|---|---|
-| docs/10-input/ | 需求规格、参考资料索引、约束（输入文档） | 阶段 1 |
-| docs/20-design/ | 架构、ADR 决策记录、能力契约 SPEC | 阶段 2 |
-| docs/30-dev/ | 编码规范、模块开发手册、测试策略 | 阶段 2/3 |
-| docs/40-output/ | 接入指南、发布说明（输出文档） | 阶段 5 |
-| docs/90-knowledge/ | 知识图谱 + 会话记忆（横切，每阶段更新） | 所有阶段 |
+| `:transport` | `bridge-transport` | 唯一 AIDL（冻结区） |
+| `:core:lite` | `bridge-core-lite` | 内核（无 Service），统一静态门面 `Bridge` |
+| `:core:full` | `bridge-core` | = core:lite + 托管 `BridgeNodeService` |
+| `:contract:usercenter` | `bridge-contract-usercenter` | 用户中心/账号契约样板 |
+| `:contract:media` | `bridge-contract-media` | 多媒体契约样板（RPC） |
+| `:samples:account-provider` / `:samples:navi-consumer` / `:samples:media-provider` | — | lite 挂载 / lite 纯客户端 / full 自带 Service 示例 |
 
-## 历史教训（一期 baic-openapi 用血换的，不可重蹈）
+> 接入只有一个入口 `Bridge.init(ctx)`：三种形态（full 自带 Service / lite 挂宿主 Service / 纯客户端）的差异只在「依赖哪个 aar + 是否在某 Service.onBind 返回 `Bridge.nodeBinder()`」，不在 API。
+
+`docs/20-design/` 放设计文档。
+
+## 历史教训（用血换的，不可重蹈）
 
 - Watchdog 必须监控**主线程** Looper，独立线程检查，禁止 post 死循环给自己；
-- persistent 只保 Application 主进程，Service 禁止放 `:子进程`；
-- 任何跨线程集合用 ConcurrentHashMap/CopyOnWriteArrayList，回调一次性语义用 AtomicBoolean CAS；
-- pid/uid 一律 `Binder.getCallingPid()/Uid()` 取内核值，绝不信参数；
-- 不向无权限调用方暴露任何裸 Binder（无「公开白名单」）。
-完整清单见 `docs/90-knowledge/code-landmarks.md`。
+- `persistent` 只保 Application 主进程，被 bind 的 Service 禁止放 `:子进程`；
+- 任何跨线程集合用 `ConcurrentHashMap`/`CopyOnWriteArrayList`/`CopyOnWriteArraySet`，回调一次性语义用 `AtomicBoolean` CAS；
+- `pid/uid` 一律 `Binder.getCallingPid()/Uid()` 取内核值，绝不信参数；
+- 不向无权限调用方暴露任何裸 Binder（bind 入口加 signature 权限 + 包名白名单，无「公开白名单」）；
+- `bindService` 返回 false（开机竞速）必须退避重试，否则永久断连；
+- 跨进程投递用 `oneway`，绝不让对端的慢/卡同步阻塞本端线程池或主线程。
+
+## 构建提示
+
+- 环境：Android SDK 34，minSdk 28，**Java 17**，Gradle 8.9。
+- ⚠️ Android Studio 自带 JBR 跑 `jlink`（JdkImageTransform）会失败；命令行构建用标准 JDK 17：
+  `export JAVA_HOME=~/Library/Java/JavaVirtualMachines/liberica-17.0.18`（本机已装）。
+- 全量编译：`./gradlew assembleDebug`。

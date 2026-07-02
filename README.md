@@ -1,299 +1,190 @@
-# CabinLink 
+# Bridge SDK
 
-> 车机座舱多模块跨进程通信中间件，连接车控、电话、导航、多媒体等业务 App，基于 Android Binder / AIDL 构建，兼顾**稳定性**与**低延迟**。
+> 车机座舱**去中心化**跨进程通信 SDK，连接导航、电话、多媒体、用户中心、车控等业务 App。无中心进程、无独立 APK，各 App 以 aar 接入，**连接目标由各 `contract` 提供（注入式 DI，无静态 JSON 清单）**，点对点 bind 建立长连接；以 **Topic + JSON 信封 + Schema + 版本控制** 的 RPC/Event 模型收发消息。兼顾**极致稳定性**与**低耦合**。
 
----
-
-## 目录
-
-- [背景与定位](#背景与定位)
-- [整体架构](#整体架构)
-- [模块说明](#模块说明)
-- [三大通信原语](#三大通信原语)
-- [快速接入](#快速接入)
-- [能力契约一览](#能力契约一览)
-- [稳定性设计](#稳定性设计)
-- [构建与运行](#构建与运行)
-- [目录结构](#目录结构)
+> 完整设计见 [docs/20-design/ARCH-Bridge-SDK-去中心化消息总线设计.md](docs/20-design/ARCH-Bridge-SDK-去中心化消息总线设计.md)。
 
 ---
 
-## 背景与定位
+## 定位
 
-车机座舱中，**车控（空调/座椅/车窗）、电话、导航、多媒体、语音助手**等功能分属不同厂商 APK，各自独立部署、互相解耦。CabinLink 作为统一的**服务发现与能力路由总线**，解决以下核心问题：
+各业务功能分属不同厂商 APK，独立部署、互相解耦。Bridge SDK 提供统一的去中心化通信底座：
 
-| 问题 | CabinLink 解法 |
-|------|---------------|
-| 各模块直接 bindService，耦合高 | 通过内核（link-kernel）统一注册/发现，消费方只依赖契约 |
-| 提供方崩溃后消费方无感知 | 死亡监听 + 自动 reattach，镜像标记 stale |
-| 跨进程属性读写频繁 IPC | 本地属性镜像，读操作 0 IPC |
-| 接口版本演进破坏兼容 | 传输层（AIDL）冻结，演进仅在 opcode/Bundle schema |
-| 开机启动顺序不确定 | waitFor 机制，内核先于业务启动无需手动等待 |
+| 问题 | Bridge 解法 |
+|------|------------|
+| 各模块直接 bindService，耦合高 | 统一 SDK + **contract 注入节点坐标**，模块只依赖 contract 的 schema 常量与 `NODE` |
+| 需常驻中心进程（broker/kernel） | **去中心化**，无中心进程、无独立 APK |
+| 提供方崩溃后消费方无感知 | DeathRecipient 清路由 + 退避重连 + 恢复后自动重订阅，并回调 **`onRebooted()`** 通知消费方 |
+| 消费方不知道依赖的模块是否可用 | 注册即开启就绪跟踪：**`onConnected`/`onReady`/`onRebooted` 回调 + `isReady(module)`** |
+| 存量 App 已有自己的 service | **lite aar** 挂到宿主已有 Service，不新增 Service 类 |
+| 接口版本演进破坏兼容 | 传输层 AIDL 冻结，演进只在 topic/schema/payload + schemaVersion 协商 |
+| 跨进程同步调用拖垮线程池/ANR | `deliver` 为 `oneway`，RPC 默认异步，correlationId + 超时配对 |
 
 ---
 
-## 整体架构
+## 架构分层
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        业务 App 层                               │
-│                                                                 │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│  │  语音助手 App │  │  HMI 显示 App │  │  车控 App    │  ...     │
-│  │ (消费方)     │  │ (消费方)     │  │ (提供方)     │          │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘          │
-│         │                 │                 │                   │
-│  ┌──────▼─────────────────▼─────────────────▼───────┐          │
-│  │              contract-X  契约层                   │          │
-│  │  contract-car │ contract-phone │ contract-navi   │          │
-│  │  contract-media  (Proxy / Skeleton / Schema)     │          │
-│  └──────────────────────────┬────────────────────────┘          │
-│                             │                                   │
-│  ┌──────────────────────────▼────────────────────────┐          │
-│  │              link-runtime  运行时框架               │          │
-│  │  CabinLink门面 │ PipeProxy │ CapabilitySkeleton    │          │
-│  │  PropertyMirror │ LinkResult │ 自动重连/重放        │          │
-│  └──────────────────────────┬────────────────────────┘          │
-└─────────────────────────────│───────────────────────────────────┘
-                              │  AIDL（冻结区 ICapabilityPipe）
-┌─────────────────────────────▼───────────────────────────────────┐
-│                    link-pipe  传输层（AIDL 定义）                 │
-│  ICapabilityPipe │ ILinkKernel │ ILinkWatcher                   │
-│  IPipeCallback   │ IPipeReply                                   │
-└─────────────────────────────┬───────────────────────────────────┘
-                              │
-┌─────────────────────────────▼───────────────────────────────────┐
-│                    link-kernel  控制面 APK                        │
-│  LinkKernelService（注册/发现/健康/ACL）                          │
-│  KernelImpl │ AclGuard │ HealthMonitor │ Watchdog               │
-└─────────────────────────────────────────────────────────────────┘
+业务 App（导航 / 电话 / 多媒体 / 用户中心 …）
+      │  选择接入形态：全量 aar（自带 Service）/ lite aar（挂已有 service）
+      ▼
+contract/<module>（topic + schema + 门面 + ServiceNode 节点坐标 NODE，模块团队自治）
+      │  组合根注入：Bridge.init(ctx).register(XxxContract.NODE, cb)
+      ▼
+core:full（= core:lite + 托管 BridgeNodeService） / core:lite（内核，无 Service）
+      │  AIDL（冻结区）
+      ▼
+transport（IBridgeNode：deliver(oneway) / attach；BridgeEnvelope）
 ```
 
-**依赖方向（严格单向）：**
+**依赖方向（严格单向）：** `业务 App → :contract:X → :core:full/:core:lite → :transport`
 
-```
-业务 App  →  contract-X  →  link-runtime  →  link-pipe
-                                               ↑
-link-kernel  ─────────────────────────────────┘
-```
-
-- `link-kernel` 不依赖任何 contract，控制面与业务数据完全隔离
-- `contract-X` 之间互不依赖
-- `link-pipe` 是唯一的跨进程传输层，AIDL 接口一旦评审通过永不修改签名
+- `:contract:X` 之间互不依赖；`:core` 不感知任何业务 topic。
+- `:transport` 是唯一跨进程层，AIDL 评审通过后永不修改签名。
 
 ---
 
 ## 模块说明
 
-### `link-pipe` — 传输层（AIDL 定义）
-
-全总线唯一的跨进程接口定义，属于**冻结区**，评审通过后方法签名不可变更。
-
-| AIDL 文件 | 作用 |
-|-----------|------|
-| `ICapabilityPipe` | 数据面核心接口：invoke / subscribe / snapshot / ping / describe |
-| `ILinkKernel` | 控制面接口：register / query / waitFor / unwatch |
-| `ILinkWatcher` | 能力上线/下线异步通知 |
-| `IPipeCallback` | Event / Property 推送回调 |
-| `IPipeReply` | Call 异步回执（含错误码） |
-
----
-
-### `link-runtime` — 运行时框架
-
-业务 App 的唯一依赖库，封装所有通信细节。
-
-| 类 | 职责 |
-|----|------|
-| `CabinLink` | 门面，提供 `publish()` / `require()` 两个核心方法 |
-| `CapabilitySkeleton` | 提供方基类，处理 onInvoke 分发、属性推送、事件发送 |
-| `PipeProxy` | 消费方基类，管理本地属性镜像、订阅、Call 调用 |
-| `PropertyMirror` | 属性本地缓存，读操作 0 IPC，支持 watch 订阅 |
-| `CapabilityDescriptor<T>` | 能力描述符，含 ID / 版本 / Proxy 工厂 |
-| `LinkResult<T>` | 统一结果封装（ok / fail + 错误码） |
-| `Reply<T>` | Call 异步回调接口 |
+| Gradle 路径 | artifactId | 职责 |
+|------------|-----------|------|
+| `:transport` | `bridge-transport` | 唯一 AIDL（冻结区）：`IBridgeNode` + `BridgeEnvelope` |
+| `:core:lite` | `bridge-core-lite` | 连接/重连/编解码/RPC/分发/鉴权 + 模块就绪跟踪，统一静态门面 `Bridge`（链式 `init`），**无 Service** |
+| `:core:full` | `bridge-core` | = `core-lite` + 自带托管 `BridgeNodeService` |
+| `:contract:usercenter` | `bridge-contract-usercenter` | 用户中心/账号契约样板（topic + schema + 门面 + `UserCenterContract.NODE`） |
+| `:contract:media` | `bridge-contract-media` | 多媒体契约样板（RPC topic + schema + 门面 + `MediaContract.NODE`） |
+| `:samples:account-provider` | — | 账号 provider 示例（lite·挂已有 Service） |
+| `:samples:navi-consumer` | — | 导航 consumer 示例（lite·纯客户端：订阅账号 + 拉取 + 调媒体） |
+| `:samples:media-provider` | — | 多媒体 provider 示例（full·自带 Service） |
 
 ---
 
-### `link-kernel` — 控制面 APK
+## 两种接入形态
 
-独立进程运行，负责**注册表维护**和**能力生命周期管理**，不承载任何业务数据。
-
-| 类 | 职责 |
-|----|------|
-| `LinkKernelService` | Service 入口，启动 Watchdog + HealthMonitor |
-| `KernelImpl` | 注册表（ConcurrentHashMap）+ 观察者列表（CopyOnWriteArrayList） |
-| `AclGuard` | 签名级访问控制，pid/uid 取自 Binder 内核值，防伪造 |
-| `HealthMonitor` | 独立线程周期 ping 所有注册能力，自动剔除僵尸 Binder |
-| `Watchdog` | 独立线程监控主线程 Looper，ANR 自检 |
+| 形态 | 依赖 | Service | 适用 |
+|------|------|---------|------|
+| **全量 aar** | `bridge-core` | 自带（manifest 自动合并） | 全新模块 |
+| **lite aar** | `bridge-core-lite` | 复用宿主已有 service / 无 | 已有 service 的 App、纯消费方 |
 
 ---
 
-### `contract-car` — 车控能力契约
+## 通信语义
 
-以**空调（HVAC）**为样板，演示完整的 Proxy / Skeleton / Schema 三件套模式。
-
-| 类 | 职责 |
-|----|------|
-| `Hvac` | 消费方接口（Call + Property 镜像读 + Event 订阅） |
-| `HvacSchema` | 双端协议对照表（opCode / propId / topic 常量） |
-| `HvacSkeleton` | 提供方骨架，业务方继承后只写业务逻辑 |
-| `HvacProxy` | 消费方代理，由框架自动构造 |
-
-**HVAC 协议定义：**
-
-```
-Call opcodes:    OP_SET_AC_POWER=1  |  OP_SET_TEMPERATURE=2
-Property ids:    P_AC_ON=1  |  P_TEMPERATURE=2  |  P_FAN_SPEED=3
-Event topics:    T_ALERT=1
-Capability ID:   "baic.car.hvac"
-```
-
----
-
-### `contract-phone` / `contract-navi` / `contract-media`
-
-与 contract-car 结构相同，契约定义如下：
-
-| 契约 | Capability ID | 主要 Call | 主要 Property | 主要 Event |
-|------|--------------|-----------|--------------|-----------|
-| 电话 | `baic.phone` | answer / hangup / dial | callState / peerNumber | INCOMING_CALL / CALL_ENDED |
-| 导航 | `baic.navi` | navigateTo / cancel | naviState / etaSeconds / remainMeters | TURN_HINT / ARRIVED |
-| 多媒体 | `baic.media` | play / pause / next / prev / setVolume | playState / title / volume | TRACK_CHANGED |
-
----
-
-### `sample-car` — 提供方示例
-
-演示如何实现一个车控能力提供方（`HvacImpl`），以及如何通过 `CabinLink.publish()` 注册到总线。
-
-### `sample-voice` — 消费方示例
-
-演示如何通过 `CabinLink.require()` 获取能力，并使用 Call / Property / Event 三原语与提供方交互。
-
----
-
-## 三大通信原语
-
-### 1. Call — 远程调用（异步）
+### RPC（默认异步）
 
 ```java
 // 消费方
-hvac.setTemperature(26.0f, result -> {
-    if (result.isOk()) { /* 成功 */ }
-    else { /* result.code() / result.message() */ }
+Bridge.request("media.play", "{\"trackId\":\"123\"}", new BridgeReply() {
+    public void onSuccess(String payload) { }
+    public void onError(int code, String msg) { }
+}, 3000);
+
+// 提供方
+Bridge.onRequest("media.play", (req, resp) -> {
+    if (player.play(req.get("trackId"))) resp.ok("{\"playState\":1}");
+    else resp.fail(MediaError.E_PLAYER_BUSY, "播放器忙");
 });
 ```
 
+同步糖 `Bridge.requestSync(topic, payload, timeoutMs)` 仅限工作线程，主线程调用抛 `IllegalStateException`。
+
+**耗时 handler 用 `onRequestAsync`：** `onRequest` 的 handler 在单线程 worker **串行内联**执行，适合快 handler；若 handler 耗时（查库 / 算路 / 解码），会**队头阻塞**后续所有请求与事件。这类改用 `onRequestAsync`——SDK 在**独立线程池并行**执行，不占 worker：
+
 ```java
-// 提供方（HvacSkeleton 子类）
-@Override
-public void setTemperature(float celsius, ReplySink reply) {
-    // 下发 CAN 报文...
-    setTemperatureProp(celsius);  // 自动推送订阅者
-    reply.ok();
+// 耗时处理：独立线程池并行，不阻塞其它请求
+Bridge.onRequestAsync("media.play", (req, resp) -> {
+    String r = decodeAndPlay(req.get("trackId"));  // 耗时操作
+    resp.ok(r);                                     // 可直接回，也可跨线程稍后回
+});
+```
+
+> async handler 之间并行，访问共享状态需自管并发。若仍用 `onRequest` 处理耗时任务，SDK 检测到 handler 同步占用 worker **≥200ms** 会打告警，引导改用 `onRequestAsync`。
+
+### Event（pub/sub）
+
+```java
+Bridge.publish("usercenter.account.state", accountJson);          // 提供方
+Bridge.subscribe("usercenter.account.state", payload -> { ... }); // 消费方：单 topic
+
+// 批量订阅：多个 topic 共用一个回调，回调带 topic 以区分来源
+Bridge.subscribes("usercenter.account.state", "media.state")
+      .on((topic, payload) -> { ... });
+
+// 整模块订阅：该模块（topic 前缀 "usercenter."）下所有 event
+Bridge.subscribeAll("usercenter")
+      .on((topic, payload) -> { ... });
+```
+
+> 整模块订阅的跨进程推送：消费端在握手里声明通配项 `usercenter.*`，发布端按前缀匹配推送——发布方无需感知消费方订了哪些具体 topic。
+
+---
+
+## 连接与就绪（注入式 DI）
+
+连接目标不再写在 `assets/bridge_nodes.json`，而是由各 `:contract:X` 暴露一个 `ServiceNode`（节点包名 + action + component + 模块 + 契约版本）。消费方在组合根（`Application.onCreate`）把它注入给 Bridge——`register(ServiceNode, cb)` 一调用即完成「连接 + 模块注册 + 就绪回调」。这是手动 DI（控制反转）：`contract` 合法依赖 `core` 并构造 `ServiceNode` 推给 `core`，`core` 永不反向依赖 `contract`。
+
+```java
+// contract 侧：节点坐标唯一来源
+public final class MediaContract {
+    public static final ServiceNode NODE = new ServiceNode(
+        "com.baic.media", "com.baic.bridge.NODE", null,   // pkg / action / component
+        MediaSchema.MODULE, MediaSchema.VERSION);          // 模块 / 契约版本
 }
+
+// 消费方组合根：链式注入
+Bridge.init(this)
+      .register(UserCenterContract.NODE, accountCb)
+      .register(MediaContract.NODE, mediaCb)
+      .subscribes(UserCenterSchema.ACCOUNT_STATE, MediaSchema.STATE)
+      .on((topic, payload) -> { ... });
 ```
 
-### 2. Property — 属性镜像（本地读，0 IPC）
+**模块状态回调**（在 SDK worker 线程串行触发，更新 UI 自行切主线程）：
 
 ```java
-// 读本地镜像（无 IPC 开销）
-float temp = hvac.temperature();
-boolean isOn = hvac.acOn();
-
-// 订阅属性变化
-hvac.onTemperature(newTemp -> {
-    // 首次回调包含当前快照，后续为增量推送
-});
+ModuleCallback cb = new ModuleCallback() {
+    public void onConnected() { }  // 该模块节点 bind 成功（未握手），排查日志用，重连会再触发
+    public void onReady()     { }  // 提供方握手完成、能力首次可用，此后调 RPC 安全
+    public void onRebooted()  { }  // 曾就绪的提供方崩溃恢复后再次可用，宜重新拉取状态
+};
+boolean up = Bridge.isReady(MediaSchema.MODULE);  // 同步查询是否就绪
 ```
 
-### 3. Event — 事件订阅（异步推送）
-
-```java
-// 消费方订阅事件
-hvac.onAlert(message -> {
-    Log.w(TAG, "HVAC alert: " + message);
-});
-```
-
-```java
-// 提供方发送事件
-emitAlert("压缩机过热，已保护性关闭");
-```
+> 非就绪状态调用 `request` 会打印告警并回 `E_NO_PROVIDER`；提供方（被动等连）只需 `Bridge.onRequest(...)` 注册能力（经 HELLO 通告对端），无需单独声明模块、不主动连接。
 
 ---
 
 ## 快速接入
 
-### 提供方（3 步）
+**消费方（依赖某模块）：**
 
-**Step 1** — 继承 Skeleton，实现业务方法：
-
+```kotlin
+implementation(project(":core:lite"))      // 纯客户端
+implementation(project(":contract:media")) // 提供 MediaContract.NODE
+```
 ```java
-public class HvacImpl extends HvacSkeleton {
-    @Override
-    public void setAcPower(boolean on, ReplySink reply) {
-        CanBus.write(AC_POWER_CMD, on);   // 下发 CAN
-        setAcOnProp(on);                   // 更新属性，框架自动推送
-        reply.ok();
-    }
-
-    @Override
-    public void setTemperature(float celsius, ReplySink reply) {
-        CanBus.write(TEMP_CMD, celsius);
-        setTemperatureProp(celsius);
-        reply.ok();
-    }
-}
+Bridge.init(this)                           // Application.onCreate
+      .register(MediaContract.NODE, mediaCb);
 ```
 
-**Step 2** — 在 Application 中发布：
+**全新提供方（全量）：**
 
+```kotlin
+implementation(project(":core:full"))
+implementation(project(":contract:media"))
+```
 ```java
-public class CarApp extends Application {
-    @Override
-    public void onCreate() {
-        super.onCreate();
-        CabinLink.of(this).publish(new HvacImpl());
-    }
-}
+Bridge.init(this);
+Bridge.onRequest(MediaSchema.PLAY, (req, resp) -> { ... });  // 注册能力即声明模块
 ```
 
-**Step 3** — AndroidManifest 声明 `BIND_KERNEL` Action（框架自动连接内核）。
+**已有 service 的 App（lite·挂载）：** 见 [设计文档 §10.2](docs/20-design/ARCH-Bridge-SDK-去中心化消息总线设计.md)。同样 `Bridge.init(this)`，再在宿主 `Service.onBind` 按 action 返回 `Bridge.nodeBinder()`——不新增 Service 类、不增进程。
 
 ---
 
-### 消费方（1 步）
+## 契约自治
 
-```java
-CabinLink.of(this).require(Hvac.DESCRIPTOR, hvac -> {
-    // Call
-    hvac.setTemperature(24.0f, Reply.ignore());
-
-    // Property（本地读）
-    Log.d(TAG, "当前温度: " + hvac.temperature());
-
-    // 订阅
-    hvac.onTemperature(t -> updateUI(t));
-    hvac.onAlert(msg -> showWarning(msg));
-});
-```
-
-提供方崩溃恢复后，框架自动 reattach，消费方代码**零改动**。
-
----
-
-## 能力契约一览
-
-| 能力 | 提供方 App | 消费方 App | 状态 |
-|------|-----------|-----------|------|
-| 空调（HVAC） | 车控 App | 语音/HMI | ✅ 已实现 |
-| 电话 | 电话 App | 语音/HMI | ✅ 契约已定义 |
-| 导航 | 地图 App | 语音/HMI | ✅ 契约已定义 |
-| 多媒体 | 音乐 App | 语音/HMI | ✅ 契约已定义 |
-| 座椅 | 车控 App | 语音 | 规划中 |
-| 车窗 | 车控 App | 语音 | 规划中 |
+SDK 团队只提供内核（transport + core）+ 模板 + 规范；各业务模块在自己的 `:contract:<module>` 自助补充 topic、payload schema、特殊错误码、门面。全局只维护一张「模块前缀 + 错误码区间」分配表防冲突（错误码：0=OK，1–999 SDK 保留，≥1000 各模块按区间自定义）。
 
 ---
 
@@ -301,59 +192,59 @@ CabinLink.of(this).require(Hvac.DESCRIPTOR, hvac -> {
 
 | 场景 | 机制 |
 |------|------|
-| 提供方进程崩溃 | Binder DeathRecipient → 内核剔除注册 → 消费方代理标记 stale |
-| 提供方恢复重启 | 重新 register → 内核通知 waitFor 观察者 → 消费方自动 reattach（镜像+订阅重建） |
-| 内核进程崩溃 | 提供方/消费方监听内核 Binder 死亡，bind 失败也重试，自动重注册 |
-| 开机启动乱序 | waitFor 机制：能力未上线时排队，上线后立即回调，无需轮询 |
-| 僵尸 Binder | HealthMonitor 周期 ping，无响应自动剔除 |
-| 主线程 ANR | Watchdog 独立线程监控主 Looper，超时上报 |
-| 签名伪造 | AclGuard 取 Binder 内核 uid，不信任参数传入的身份 |
-| 并发写注册表 | ConcurrentHashMap + CopyOnWriteArrayList 无锁读，串行写 |
+| 对端崩溃 | DeathRecipient 清路由，在途请求回 `E_NOT_CONNECTED`，模块置 `isReady=false` |
+| 对端恢复 | `BIND_AUTO_CREATE` 自愈 + 退避重连（指数，上限 30s）→ 重握手 → 重订阅 → 回调 `onRebooted()` |
+| bind 返回 false（开机竞速） | 必须重试 |
+| 跨进程同步阻塞 | `deliver` oneway；RPC 异步 + 超时；`requestSync` 禁主线程 |
+| 身份伪造 | 接收侧 `Binder.getCallingUid()` 校验，不信 payload.source |
+| 并发 | `ConcurrentHashMap`/`CopyOnWriteArraySet` + 回调一次性 `AtomicBoolean` CAS |
+| 重复投递 | msgId 有界 LRU 去重 |
+| 连接重复 | 按 package 去重（同一节点只 bind 一次）+ self 跳过 |
+| 慢 handler 队头阻塞 | 耗时处理用 `onRequestAsync`（独立线程池并行）；误用 `onRequest` 同步占 worker ≥200ms 打告警提示 |
+
+> **可观测性：** 启动打印版本指纹 `SDK版本 / gitSha / 构建时间 / 传输ABI`（由 `BuildConfig` 构建期注入）；全链路日志（发起连接 / 请求 / 响应 / 事件 / 模块就绪）统一带 `[包名]` 前缀，多进程 logcat 混排可一眼区分来源（`adb logcat -s Bridge.Core Bridge.Conn`）。
 
 ---
 
 ## 构建与运行
 
-**环境要求：** Android SDK 34+，minSdk 28（Android 9），Java 17，Gradle 8.x
+**环境：** Android SDK 34，minSdk 28，**Java 17**，Gradle 8.9。
+
+> ⚠️ Android Studio 自带 JBR 跑 `jlink`（JdkImageTransform）会失败，命令行构建请用标准 JDK 17：
+> `export JAVA_HOME=/path/to/jdk-17`（本机示例：`~/Library/Java/JavaVirtualMachines/liberica-17.0.18`）
 
 ```bash
-# 全量编译
+# 全量编译（5 个 aar + 3 个 sample apk）
 ./gradlew assembleDebug
 
-# 安装内核（需先启动）
-./gradlew :link-kernel:installDebug
-
-# 启动内核 Service
-adb shell am start-foreground-service \
-    -n com.baic.cabinlink.kernel/.LinkKernelService
-
-# 验证 Service 运行状态
-adb shell dumpsys activity services com.baic.cabinlink.kernel
-
-# 安装示例 App
-./gradlew :sample-car:installDebug :sample-voice:installDebug
+# 安装两个样板验证账号订阅链路
+./gradlew :samples:account-provider:installDebug :samples:navi-consumer:installDebug
 ```
+
+验证：导航 App 点"主动拉取账号"、用户中心 App 点"登录/切换/登出"，观察导航端账号状态实时刷新。
 
 ---
 
 ## 目录结构
 
 ```
-cabinlink/
-├── link-pipe/          # 传输层 AIDL（冻结区，不可改签名）
-├── link-runtime/       # 运行时框架（业务 App 的唯一依赖）
-├── link-kernel/        # 控制面 APK（注册/发现/健康）
-├── contract-car/       # 车控能力契约（HVAC 样板）
-├── contract-phone/     # 电话能力契约
-├── contract-navi/      # 导航能力契约
-├── contract-media/     # 多媒体能力契约
-├── sample-car/         # 提供方接入示例
-├── sample-voice/       # 消费方接入示例
-└── docs/               # 架构设计文档
+.
+├── transport/                   # 传输层 AIDL（冻结区）
+├── core/
+│   ├── lite/                    # 内核（无 Service），统一门面 Bridge
+│   └── full/                    # = core:lite + 托管 BridgeNodeService
+├── contract/
+│   ├── usercenter/              # 用户中心/账号契约样板
+│   └── media/                   # 多媒体契约样板（RPC）
+├── samples/
+│   ├── account-provider/        # 账号 provider（lite 挂已有 service）
+│   ├── navi-consumer/           # 导航 consumer（lite 纯客户端）
+│   └── media-provider/          # 多媒体 provider（full 自带 service）
+└── docs/20-design/              # Bridge SDK 设计文档
 ```
 
 ---
 
 ## License
 
-内部项目，版权归Baic新能源所有。
+内部项目，版权归 Baic 新能源所有。

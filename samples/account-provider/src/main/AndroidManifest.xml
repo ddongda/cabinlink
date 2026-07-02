@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:name=".UserCenterApp"
+        android:label="用户中心(账号Provider)"
+        android:allowBackup="false">
+
+        <!-- 模拟"宿主已有 Service"：加一个 Bridge action 复用同一 Service 暴露通道，不新增 Service 类 -->
+        <service
+            android:name=".HostService"
+            android:exported="true"
+            android:permission="com.baic.bridge.permission.LINK">
+            <intent-filter>
+                <action android:name="com.baic.usercenter.HOST" />
+            </intent-filter>
+        </service>
+
+        <activity android:name=".MainActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
